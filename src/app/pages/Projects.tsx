@@ -1,5 +1,6 @@
 import { useState } from 'react';
 import { useApp, Project, ProjectStatus, Priority, Task, formatCurrency, getStatusColor, getPriorityColor } from '../store/appStore';
+import { api } from '../../lib/api';
 import Modal from '../components/Modal';
 import { ConfirmDialog } from '../components/Modal';
 import Badge from '../components/Badge';
@@ -170,7 +171,7 @@ function ProjectForm({ project, onSave, onClose }: { project: Project | null; on
 }
 
 export default function Projects() {
-  const { projects, setProjects } = useApp();
+  const { projects, setProjects, currentFounder } = useApp();
   const [search, setSearch] = useState('');
   const [filterStatus, setFilterStatus] = useState<ProjectStatus | 'all'>('all');
   const [view, setView] = useState<'grid' | 'list'>('grid');
@@ -190,12 +191,19 @@ export default function Projects() {
     totalBudget: projects.reduce((s, p) => s + p.budget, 0),
   };
 
-  const handleSave = (project: Project) => {
-    setProjects(prev => {
-      const idx = prev.findIndex(p => p.id === project.id);
-      if (idx >= 0) { const n = [...prev]; n[idx] = project; return n; }
-      return [...prev, project];
-    });
+  const handleSave = async (project: Project) => {
+    try {
+      if (project.id && !project.id.startsWith('p')) {
+        const updated = await api.put(`/projects/${project.id}`, project, currentFounder);
+        setProjects(prev => prev.map(p => p.id === project.id ? updated : p));
+      } else {
+        const { id, ...rest } = project;
+        const created = await api.post('/projects', rest, currentFounder);
+        setProjects(prev => [...prev, created]);
+      }
+    } catch (err) {
+      console.error(err);
+    }
   };
 
   return (

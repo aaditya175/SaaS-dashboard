@@ -1,5 +1,6 @@
 import { useState } from 'react';
 import { useApp, Lead, LeadStage, LEAD_STAGES, formatCurrency, getStageColor } from '../store/appStore';
+import { api } from '../../lib/api';
 import Modal from '../components/Modal';
 import Badge from '../components/Badge';
 import { ConfirmDialog } from '../components/Modal';
@@ -16,10 +17,10 @@ const STAGE_COLORS: Record<LeadStage, string> = {
   Lost: 'border-red-500/30 bg-red-500/5',
 };
 
-function LeadCard({ lead, onEdit, onDelete }: { lead: Lead; onEdit: (l: Lead) => void; onDelete: (id: string) => void }) {
+function LeadCard({ lead, onEdit, onDelete, onMove }: { lead: Lead; onEdit: (l: Lead) => void; onDelete: (id: string) => void; onMove?: (id: string, direction: 'left' | 'right') => void }) {
   const [menuOpen, setMenuOpen] = useState(false);
   return (
-    <div className="bg-card border border-border rounded-xl p-4 cursor-pointer hover:border-primary/30 hover:shadow-md hover:shadow-primary/5 transition-all group">
+    <div className="bg-card border border-border rounded-xl p-4 cursor-pointer hover:border-primary/30 hover:shadow-md hover:shadow-primary/5 transition-all group flex flex-col">
       <div className="flex items-start justify-between gap-2 mb-3">
         <div>
           <p className="text-sm font-semibold text-foreground leading-snug">{lead.name}</p>
@@ -45,13 +46,26 @@ function LeadCard({ lead, onEdit, onDelete }: { lead: Lead; onEdit: (l: Lead) =>
         </div>
       </div>
       <p className="text-base font-bold text-foreground mb-3">{formatCurrency(lead.value)}</p>
-      <div className="space-y-1.5 text-xs text-muted-foreground">
-        <div className="flex items-center gap-1.5"><Tag className="w-3 h-3" />{lead.assignee}</div>
+      <div className="space-y-1.5 text-xs text-muted-foreground flex-1">
+        <div className="flex items-center justify-between">
+          <div className="flex items-center gap-1.5"><Tag className="w-3 h-3" />{lead.assignee}</div>
+          {lead.updatedBy && <span className="text-[10px] text-muted-foreground/70 truncate max-w-[90px]">Updated: {lead.updatedBy.split(' ')[0]}</span>}
+        </div>
         <div className="flex items-center gap-1.5"><Calendar className="w-3 h-3" />Last: {lead.lastContact}</div>
+        {lead.tags.length > 0 && (
+          <div className="flex flex-wrap gap-1 mt-3">
+            {lead.tags.map(t => <span key={t} className="text-[10px] px-1.5 py-0.5 bg-muted rounded text-muted-foreground">{t}</span>)}
+          </div>
+        )}
       </div>
-      {lead.tags.length > 0 && (
-        <div className="flex flex-wrap gap-1 mt-3">
-          {lead.tags.map(t => <span key={t} className="text-[10px] px-1.5 py-0.5 bg-muted rounded text-muted-foreground">{t}</span>)}
+      {onMove && (
+        <div className="flex items-center gap-2 mt-4 pt-3 border-t border-border/50">
+          <button onClick={(e) => { e.stopPropagation(); onMove(lead.id, 'left'); }} className="flex-1 py-1 flex justify-center hover:bg-muted rounded-md text-muted-foreground hover:text-foreground transition-colors">
+            <span className="text-xs">&lt;</span>
+          </button>
+          <button onClick={(e) => { e.stopPropagation(); onMove(lead.id, 'right'); }} className="flex-1 py-1 flex justify-center hover:bg-muted rounded-md text-muted-foreground hover:text-foreground transition-colors">
+            <span className="text-xs">&gt;</span>
+          </button>
         </div>
       )}
     </div>
@@ -146,7 +160,7 @@ function LeadForm({ lead, onSave, onClose }: { lead: Partial<Lead> | null; onSav
 }
 
 export default function CRM() {
-  const { leads, setLeads } = useApp();
+  const { leads, setLeads, currentFounder } = useApp();
   const [search, setSearch] = useState('');
   const [filterStage, setFilterStage] = useState<LeadStage | 'all'>('all');
   const [editLead, setEditLead] = useState<Lead | null | undefined>(undefined);
@@ -159,16 +173,47 @@ export default function CRM() {
     return matchSearch && matchStage;
   });
 
-  const handleSave = (lead: Lead) => {
-    setLeads(prev => {
-      const idx = prev.findIndex(l => l.id === lead.id);
-      if (idx >= 0) { const n = [...prev]; n[idx] = lead; return n; }
-      return [...prev, lead];
-    });
+  const handleSave = async (lead: Lead) => {
+    try {
+      if (lead.id && !lead.id.startsWith('l')) {
+        const updated = await api.put(`/leads/${lead.id}`, lead, currentFounder);
+        setLeads(prev => prev.map(l => l.id === lead.id ? updated : l));
+      } else {
+        const { id, ...rest } = lead;
+        const created = await api.post('/leads', rest, currentFounder);
+        setLeads(prev => [...prev, created]);
+      }
+    } catch (err) {
+      console.error(err);
+    }
   };
 
-  const handleDelete = (id: string) => {
-    setLeads(prev => prev.filter(l => l.id !== id));
+  const handleDelete = async (id: string) => {
+    try {
+      if (!id.startsWith('l')) await api.delete(`/leads/${id}`, currentFounder);
+      setLeads(prev => prev.filter(l => l.id !== id));
+    } catch (err) {
+      console.error(err);
+    }
+  };
+
+  const handleMoveLead = async (id: string, direction: 'left' | 'right') => {
+    const lead = leads.find(l => l.id === id);
+    if (!lead) return;
+    const currentIndex = LEAD_STAGES.indexOf(lead.stage);
+    let newStage = lead.stage;
+    if (direction === 'left' && currentIndex > 0) newStage = LEAD_STAGES[currentIndex - 1];
+    if (direction === 'right' && currentIndex < LEAD_STAGES.length - 1) newStage = LEAD_STAGES[currentIndex + 1];
+    if (newStage === lead.stage) return;
+    
+    // Optimistic update
+    setLeads(prev => prev.map(l => l.id === id ? { ...l, stage: newStage } : l));
+    try {
+      if (!id.startsWith('l')) await api.put(`/leads/${id}`, { stage: newStage }, currentFounder);
+    } catch (err) {
+      // Revert if error
+      setLeads(prev => prev.map(l => l.id === id ? { ...l, stage: lead.stage } : l));
+    }
   };
 
   const totalValue = filtered.reduce((s, l) => s + l.value, 0);
@@ -219,7 +264,7 @@ export default function CRM() {
                 </div>
                 <div className="space-y-2">
                   {stageLeads.map(l => (
-                    <LeadCard key={l.id} lead={l} onEdit={setEditLead} onDelete={setDeletingId} />
+                    <LeadCard key={l.id} lead={l} onEdit={setEditLead} onDelete={setDeletingId} onMove={handleMoveLead} />
                   ))}
                   {stageLeads.length === 0 && (
                     <div className="rounded-lg border border-dashed border-border p-4 text-center text-xs text-muted-foreground">
@@ -258,7 +303,10 @@ export default function CRM() {
                     </td>
                     <td className="px-4 py-3"><span className={`text-xs font-semibold px-2 py-0.5 rounded-full ${getStageColor(l.stage)}`}>{l.stage}</span></td>
                     <td className="px-4 py-3 font-semibold text-foreground">{formatCurrency(l.value)}</td>
-                    <td className="px-4 py-3 text-muted-foreground">{l.assignee}</td>
+                    <td className="px-4 py-3">
+                      <p className="text-muted-foreground">{l.assignee}</p>
+                      {l.updatedBy && <p className="text-[10px] text-muted-foreground/60">Updated: {l.updatedBy.split(' ')[0]}</p>}
+                    </td>
                     <td className="px-4 py-3 text-muted-foreground">{l.source}</td>
                     <td className="px-4 py-3 text-muted-foreground">{l.lastContact}</td>
                     <td className="px-4 py-3">

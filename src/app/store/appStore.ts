@@ -1,4 +1,4 @@
-import { createContext, useContext, useState, ReactNode, createElement } from 'react';
+import { createContext, useContext, useState, ReactNode, createElement, useEffect } from 'react';
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -22,6 +22,7 @@ export interface Lead {
   notes: string;
   source: string;
   lostReason?: string;
+  updatedBy?: string;
 }
 
 export interface Task {
@@ -149,7 +150,7 @@ export interface Notification {
 // ─── Mock Data ────────────────────────────────────────────────────────────────
 
 export const FOUNDERS: Founder[] = [
-  { id: 'f1', name: 'Aryan Shah', role: 'CEO & Growth Lead', initials: 'AS', color: '#7c3aed', xp: 4250, level: 8, streak: 12, badges: ['🏆', '🚀', '💎', '🔥'], revenue: 285000, outreach: 142, meetings: 18, score: 92, tasks: [] },
+  { id: 'f1', name: 'Aryan Shah', role: 'Super Admin', initials: 'AS', color: '#7c3aed', xp: 4250, level: 8, streak: 12, badges: ['🏆', '🚀', '💎', '🔥'], revenue: 285000, outreach: 142, meetings: 18, score: 92, tasks: [] },
   { id: 'f2', name: 'Priya Mehta', role: 'COO & Client Success', initials: 'PM', color: '#06b6d4', xp: 3890, level: 7, streak: 8, badges: ['⭐', '🤝', '💪'], revenue: 210000, outreach: 89, meetings: 24, score: 88, tasks: [] },
   { id: 'f3', name: 'Rahul Patel', role: 'CTO & Product', initials: 'RP', color: '#10b981', xp: 3540, level: 7, streak: 15, badges: ['⚡', '🛠️', '🎯', '🔥'], revenue: 175000, outreach: 45, meetings: 12, score: 85, tasks: [] },
   { id: 'f4', name: 'Sneha Kapoor', role: 'CMO & Strategy', initials: 'SK', color: '#f59e0b', xp: 3120, level: 6, streak: 5, badges: ['🎨', '📊', '💡'], revenue: 195000, outreach: 167, meetings: 15, score: 79, tasks: [] },
@@ -267,6 +268,8 @@ interface AppState {
   setNotifications: (n: Notification[]) => void;
   checkIns: CheckIn[];
   setCheckIns: (c: CheckIn[]) => void;
+  founders: Founder[];
+  setFounders: (f: Founder[]) => void;
   currentPage: string;
   setCurrentPage: (page: string) => void;
   isDark: boolean;
@@ -279,6 +282,8 @@ interface AppState {
 
 const AppContext = createContext<AppState | null>(null);
 
+import { api } from '../../lib/api';
+
 export function AppProvider({ children }: { children: ReactNode }) {
   const [leads, setLeads] = useState<Lead[]>(INITIAL_LEADS);
   const [projects, setProjects] = useState<Project[]>(INITIAL_PROJECTS);
@@ -288,13 +293,39 @@ export function AppProvider({ children }: { children: ReactNode }) {
   const [kbDocs, setKbDocs] = useState<KBDocument[]>(INITIAL_KB);
   const [notifications, setNotifications] = useState<Notification[]>(INITIAL_NOTIFICATIONS);
   const [checkIns, setCheckIns] = useState<CheckIn[]>([]);
+  const [founders, setFounders] = useState<Founder[]>(FOUNDERS);
   const [currentPage, setCurrentPage] = useState('dashboard');
   const [isDark, setIsDark] = useState(true);
   const [commandOpen, setCommandOpen] = useState(false);
   const [currentFounder, setCurrentFounder] = useState('f1');
 
+  useEffect(() => {
+    const loadData = async () => {
+      try {
+        const [apiLeads, apiProjects, apiClients, apiCheckins, apiKb, apiFounders] = await Promise.all([
+          api.get('/leads', currentFounder).catch(() => INITIAL_LEADS),
+          api.get('/projects', currentFounder).catch(() => INITIAL_PROJECTS),
+          api.get('/clients', currentFounder).catch(() => INITIAL_CLIENTS),
+          api.get('/checkins', currentFounder).catch(() => []),
+          api.get('/kb').catch(() => INITIAL_KB),
+          api.get('/founders').catch(() => FOUNDERS)
+        ]);
+        
+        if (Array.isArray(apiLeads)) setLeads(apiLeads);
+        if (Array.isArray(apiProjects)) setProjects(apiProjects);
+        if (Array.isArray(apiClients)) setClients(apiClients);
+        if (Array.isArray(apiCheckins)) setCheckIns(apiCheckins);
+        if (Array.isArray(apiKb)) setKbDocs(apiKb);
+        if (Array.isArray(apiFounders) && apiFounders.length > 0) setFounders(apiFounders);
+      } catch (err) {
+        console.error('Error loading data', err);
+      }
+    };
+    loadData();
+  }, [currentFounder]);
+
   return createElement(AppContext.Provider, {
-    value: { leads, setLeads, projects, setProjects, clients, setClients, transactions, setTransactions, meetings, setMeetings, kbDocs, setKbDocs, notifications, setNotifications, checkIns, setCheckIns, currentPage, setCurrentPage, isDark, setIsDark, commandOpen, setCommandOpen, currentFounder, setCurrentFounder },
+    value: { leads, setLeads, projects, setProjects, clients, setClients, transactions, setTransactions, meetings, setMeetings, kbDocs, setKbDocs, notifications, setNotifications, checkIns, setCheckIns, founders, setFounders, currentPage, setCurrentPage, isDark, setIsDark, commandOpen, setCommandOpen, currentFounder, setCurrentFounder },
     children
   });
 }

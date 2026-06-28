@@ -1,5 +1,6 @@
 import { useState } from 'react';
-import { useApp, Client, formatCurrency } from '../store/appStore';
+import { useApp, Client, formatCurrency, getStageColor } from '../store/appStore';
+import { api } from '../../lib/api';
 import Modal from '../components/Modal';
 import { ConfirmDialog } from '../components/Modal';
 import { Plus, Search, Star, Globe, Mail, Phone, Edit2, Trash2, Building2, TrendingUp, Users, CheckCircle } from 'lucide-react';
@@ -160,7 +161,7 @@ function ClientDetail({ client, onEdit, onClose }: { client: Client; onEdit: () 
 }
 
 export default function Clients() {
-  const { clients, setClients } = useApp();
+  const { clients, setClients, currentFounder } = useApp();
   const [search, setSearch] = useState('');
   const [filterStatus, setFilterStatus] = useState<'all' | Client['status']>('all');
   const [editClient, setEditClient] = useState<Client | null | undefined>(undefined);
@@ -179,12 +180,19 @@ export default function Clients() {
     avgSat: clients.reduce((s, c) => s + c.satisfaction, 0) / (clients.length || 1),
   };
 
-  const handleSave = (client: Client) => {
-    setClients(prev => {
-      const idx = prev.findIndex(c => c.id === client.id);
-      if (idx >= 0) { const n = [...prev]; n[idx] = client; return n; }
-      return [...prev, client];
-    });
+  const handleSave = async (client: Client) => {
+    try {
+      if (client.id && !client.id.startsWith('c')) {
+        const updated = await api.put(`/clients/${client.id}`, client, currentFounder);
+        setClients(prev => prev.map(c => c.id === client.id ? updated : c));
+      } else {
+        const { id, ...rest } = client;
+        const created = await api.post('/clients', rest, currentFounder);
+        setClients(prev => [...prev, created]);
+      }
+    } catch (err) {
+      console.error(err);
+    }
   };
 
   return (

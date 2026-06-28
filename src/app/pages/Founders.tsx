@@ -1,4 +1,5 @@
-import { useState } from 'react';
+import { useState, useMemo } from 'react';
+import { api } from '../../lib/api';
 import { useApp, FOUNDERS, Founder, formatCurrency } from '../store/appStore';
 import { RadarChart, Radar, PolarGrid, PolarAngleAxis, ResponsiveContainer, AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip } from 'recharts';
 import { Target, Zap, TrendingUp, Award, Calendar, CheckSquare, Coffee, Users } from 'lucide-react';
@@ -166,13 +167,28 @@ function FounderTab({ founder, data }: { founder: Founder; data: typeof PERSONAL
 }
 
 export default function Founders() {
-  const { currentFounder, setCurrentFounder } = useApp();
+  const { currentFounder, setCurrentFounder, founders, setFounders } = useApp();
+  const [showAdd, setShowAdd] = useState(false);
+  const [newFounder, setNewFounder] = useState({ name: '', role: '', color: '#3b82f6', initials: '' });
+
+  const activeFounder = founders.find(f => f.id === currentFounder);
+  const isSuperAdmin = activeFounder?.role === 'Super Admin';
+
+  const handleAdd = async () => {
+    try {
+      const created = await api.post('/founders', newFounder);
+      setFounders([...founders, created]);
+      setShowAdd(false);
+    } catch (err) {
+      console.error(err);
+    }
+  };
 
   return (
     <div className="p-6 space-y-5 max-w-[1600px] mx-auto">
       {/* Founder tabs */}
       <div className="flex items-center gap-2 overflow-x-auto pb-1">
-        {FOUNDERS.map(f => (
+        {founders.map(f => (
           <button
             key={f.id}
             onClick={() => setCurrentFounder(f.id)}
@@ -184,14 +200,32 @@ export default function Founders() {
           >
             <div className="w-6 h-6 rounded-full text-[10px] font-bold text-white flex items-center justify-center" style={{ backgroundColor: f.color }}>{f.initials}</div>
             {f.name.split(' ')[0]}
-            {currentFounder === f.id && <span className="text-[10px] bg-primary/20 text-primary px-1.5 py-0.5 rounded-full">Lv.{f.level}</span>}
+            {currentFounder === f.id && <span className="text-[10px] bg-primary/20 text-primary px-1.5 py-0.5 rounded-full">Lv.{f.level || 1}</span>}
           </button>
         ))}
+        {isSuperAdmin && (
+          <button onClick={() => setShowAdd(true)} className="flex items-center gap-2 px-4 py-2.5 rounded-xl border border-dashed border-border bg-card text-muted-foreground hover:text-foreground hover:border-primary/30 transition-all text-sm font-medium">
+            + Add Founder
+          </button>
+        )}
       </div>
 
+      {showAdd && isSuperAdmin && (
+        <div className="bg-card border border-border rounded-xl p-6">
+          <h3 className="text-lg font-bold mb-4">Add New Founder</h3>
+          <div className="grid grid-cols-2 gap-4 mb-4">
+            <input placeholder="Name" value={newFounder.name} onChange={e => setNewFounder({ ...newFounder, name: e.target.value })} className="px-3 py-2 bg-input-background border border-border rounded-lg" />
+            <input placeholder="Role" value={newFounder.role} onChange={e => setNewFounder({ ...newFounder, role: e.target.value })} className="px-3 py-2 bg-input-background border border-border rounded-lg" />
+            <input placeholder="Initials (e.g. JD)" value={newFounder.initials} onChange={e => setNewFounder({ ...newFounder, initials: e.target.value })} className="px-3 py-2 bg-input-background border border-border rounded-lg" />
+            <input type="color" value={newFounder.color} onChange={e => setNewFounder({ ...newFounder, color: e.target.value })} className="h-10 w-full rounded-lg cursor-pointer" />
+          </div>
+          <button onClick={handleAdd} className="px-4 py-2 bg-primary text-white rounded-lg">Save Founder</button>
+        </div>
+      )}
+
       {/* Selected founder content */}
-      {FOUNDERS.map(f => currentFounder === f.id && (
-        <FounderTab key={f.id} founder={f} data={PERSONAL_DATA[f.id]} />
+      {founders.map(f => currentFounder === f.id && (
+        <FounderTab key={f.id} founder={f} data={PERSONAL_DATA[f.id] || PERSONAL_DATA['f1']} />
       ))}
     </div>
   );

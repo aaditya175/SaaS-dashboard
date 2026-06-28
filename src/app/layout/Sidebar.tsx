@@ -27,9 +27,9 @@ const GROUP_LABELS: Record<string, string> = {
 };
 
 export default function Sidebar({ collapsed, onToggle }: { collapsed: boolean; onToggle: () => void }) {
-  const { currentPage, setCurrentPage, notifications, setCommandOpen, currentFounder } = useApp();
+  const { currentPage, setCurrentPage, notifications, setCommandOpen, currentFounder, founders } = useApp();
   const unread = notifications.filter(n => !n.read).length;
-  const founder = FOUNDERS.find(f => f.id === currentFounder) ?? FOUNDERS[0];
+  const founder = founders.find(f => f.id === currentFounder) ?? founders[0] ?? { name: 'Super Admin', initials: 'SA', color: '#10b981', role: 'Super Admin' };
 
   const groups = ['main', 'ops', 'insights'];
 

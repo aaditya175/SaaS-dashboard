@@ -1,5 +1,6 @@
 import { useState } from 'react';
-import { useApp, FOUNDERS, CheckIn, MoodScore } from '../store/appStore';
+import { useApp, CheckIn, FOUNDERS, MoodScore } from '../store/appStore';
+import { api } from '../../lib/api';
 import { CheckCircle, Clock, Smile, Frown, Meh, AlertCircle, Trophy, Plus, X } from 'lucide-react';
 
 const MOOD_OPTIONS: { score: MoodScore; label: string; icon: any; color: string }[] = [
@@ -47,8 +48,8 @@ function ListInput({ items, onChange, placeholder }: { items: string[]; onChange
 }
 
 export default function CheckInPage() {
-  const { checkIns, setCheckIns, currentFounder } = useApp();
-  const founder = FOUNDERS.find(f => f.id === currentFounder) ?? FOUNDERS[0];
+  const { checkIns, setCheckIns, currentFounder, founders } = useApp();
+  const founder = founders.find(f => f.id === currentFounder) ?? { name: 'Super Admin', initials: 'SA', color: '#10b981', role: 'Super Admin' };
 
   const today = new Date().toISOString().split('T')[0];
   const todayCheckIn = checkIns.find(c => c.founder === founder.name && c.date === today);
@@ -72,16 +73,21 @@ export default function CheckInPage() {
     setErrors(e); return Object.keys(e).length === 0;
   };
 
-  const handleSubmit = () => {
+  const handleSubmit = async () => {
     if (!validate()) return;
-    const checkIn: CheckIn = {
-      id: `ci_${Date.now()}`,
-      founder: founder.name,
-      date: today,
-      ...form,
-    };
-    setCheckIns(prev => [...prev, checkIn]);
-    setSubmitted(true);
+    try {
+      const checkInPayload = {
+        date: today,
+        ...form,
+      };
+      const created = await api.post('/checkins', checkInPayload, currentFounder);
+      
+      // Ensure created has id and founder fields if needed, or rely on backend returning it
+      setCheckIns(prev => [...prev, created]);
+      setSubmitted(true);
+    } catch (err) {
+      console.error(err);
+    }
   };
 
   const pastCheckIns = checkIns.filter(c => c.founder === founder.name).sort((a, b) => b.date.localeCompare(a.date));
