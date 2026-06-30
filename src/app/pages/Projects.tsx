@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { useApp, Project, ProjectStatus, Priority, Task, formatCurrency, getStatusColor, getPriorityColor } from '../store/appStore';
 import { api } from '../../lib/api';
 import Modal from '../components/Modal';
