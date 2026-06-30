@@ -309,13 +309,14 @@ export function AppProvider({ children }: { children: ReactNode }) {
       if (!currentFounder) return;
       
       try {
-        const [apiLeads, apiProjects, apiClients, apiCheckins, apiKb, apiFounders] = await Promise.all([
+        const [apiLeads, apiProjects, apiClients, apiCheckins, apiKb, apiFounders, apiTransactions] = await Promise.all([
           api.get('/leads', currentFounder).catch(() => INITIAL_LEADS),
           api.get('/projects', currentFounder).catch(() => INITIAL_PROJECTS),
           api.get('/clients', currentFounder).catch(() => INITIAL_CLIENTS),
           api.get('/checkins', currentFounder).catch(() => []),
           api.get('/kb').catch(() => INITIAL_KB),
-          api.get('/founders').catch(() => FOUNDERS)
+          api.get('/founders').catch(() => FOUNDERS),
+          api.get('/transactions', currentFounder).catch(() => INITIAL_TRANSACTIONS)
         ]);
         
         if (Array.isArray(apiLeads)) setLeads(apiLeads);
@@ -324,6 +325,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
         if (Array.isArray(apiCheckins)) setCheckIns(apiCheckins);
         if (Array.isArray(apiKb)) setKbDocs(apiKb);
         if (Array.isArray(apiFounders) && apiFounders.length > 0) setFounders(apiFounders);
+        if (Array.isArray(apiTransactions)) setTransactions(apiTransactions);
       } catch (err) {
         console.error('Error loading data', err);
       }

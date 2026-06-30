@@ -1,4 +1,4 @@
-import { useApp, FOUNDERS, formatCurrency, REVENUE_CHART_DATA, LEAD_CHART_DATA } from '../store/appStore';
+import { useApp, FOUNDERS, formatCurrency } from '../store/appStore';
 import KPICard from '../components/KPICard';
 import {
   AreaChart, Area, BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip,
@@ -137,6 +137,24 @@ export default function Dashboard() {
   const pending = transactions.filter(t => t.status === 'pending' || t.status === 'overdue').reduce((s, t) => s + t.amount, 0);
   const activeProjects = projects.filter(p => p.status === 'in_progress').length;
 
+  // Dynamic Chart Data Computations
+  const monthNames = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+  const dynamicRevenueChartData = monthNames.slice(0, new Date().getMonth() + 1).map(monthStr => {
+    const monthIndex = monthNames.indexOf(monthStr) + 1;
+    const monthStrPadded = monthIndex.toString().padStart(2, '0');
+    const txsInMonth = transactions.filter(t => t.date.startsWith(`2025-${monthStrPadded}`));
+    const rev = txsInMonth.filter(t => t.type === 'revenue').reduce((s, t) => s + t.amount, 0);
+    const exp = txsInMonth.filter(t => t.type === 'expense').reduce((s, t) => s + t.amount, 0);
+    return { month: monthStr, revenue: rev, expenses: exp, profit: rev - exp };
+  });
+
+  const dynamicLeadChartData = monthNames.slice(0, new Date().getMonth() + 1).map(monthStr => {
+    const monthIndex = monthNames.indexOf(monthStr) + 1;
+    const monthStrPadded = monthIndex.toString().padStart(2, '0');
+    const leadsInMonth = leads.filter(l => l.createdAt.startsWith(`2025-${monthStrPadded}`));
+    return { month: monthStr, leads: leadsInMonth.length, won: leadsInMonth.filter(l => l.stage === 'Won').length };
+  });
+
   const hour = new Date().getHours();
   const greeting = hour < 12 ? 'Good morning' : hour < 17 ? 'Good afternoon' : 'Good evening';
   const founder = FOUNDERS[0];
@@ -193,7 +211,7 @@ export default function Dashboard() {
             </div>
           </div>
           <ResponsiveContainer width="100%" height={220}>
-            <AreaChart data={REVENUE_CHART_DATA}>
+            <AreaChart data={dynamicRevenueChartData}>
               <defs>
                 <linearGradient id="revGrad" x1="0" y1="0" x2="0" y2="1">
                   <stop offset="5%" stopColor="#7c3aed" stopOpacity={0.3} />
@@ -227,7 +245,7 @@ export default function Dashboard() {
             <span className="text-xs text-muted-foreground">6 months</span>
           </div>
           <ResponsiveContainer width="100%" height={160}>
-            <BarChart data={LEAD_CHART_DATA}>
+            <BarChart data={dynamicLeadChartData}>
               <CartesianGrid strokeDasharray="3 3" stroke="rgba(255,255,255,0.05)" />
               <XAxis dataKey="month" tick={{ fontSize: 11, fill: 'var(--muted-foreground)' }} axisLine={false} tickLine={false} />
               <YAxis tick={{ fontSize: 11, fill: 'var(--muted-foreground)' }} axisLine={false} tickLine={false} />

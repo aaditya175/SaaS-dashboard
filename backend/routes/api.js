@@ -3,6 +3,7 @@ import Founder from '../models/Founder.js';
 import Lead from '../models/Lead.js';
 import Project from '../models/Project.js';
 import Client from '../models/Client.js';
+import Transaction from '../models/Transaction.js';
 import DailyCheckin from '../models/DailyCheckin.js';
 import KnowledgeBaseArticle from '../models/KnowledgeBaseArticle.js';
 
@@ -291,6 +292,51 @@ router.delete('/clients/:id', requireFounder, async (req, res) => {
   try {
     await Client.findByIdAndDelete(req.params.id);
     res.json({ message: 'Client deleted' });
+  } catch (err) {
+    res.status(500).json({ message: err.message });
+  }
+});
+
+// --- Transactions — GLOBAL visibility ---
+router.get('/transactions', requireFounder, async (req, res) => {
+  try {
+    const transactions = await Transaction.find();
+    res.json(transactions);
+  } catch (err) {
+    res.status(500).json({ message: err.message });
+  }
+});
+
+router.post('/transactions', requireFounder, async (req, res) => {
+  try {
+    const founderName = await getFounderName(req.founderId);
+    const newTx = new Transaction({ ...req.body, founderId: req.founderId, updatedBy: founderName });
+    const saved = await newTx.save();
+    res.status(201).json(saved);
+  } catch (err) {
+    res.status(400).json({ message: err.message });
+  }
+});
+
+router.put('/transactions/:id', requireFounder, async (req, res) => {
+  try {
+    const founderName = await getFounderName(req.founderId);
+    const updated = await Transaction.findByIdAndUpdate(
+      req.params.id,
+      { ...req.body, updatedBy: founderName },
+      { new: true }
+    );
+    if (!updated) return res.status(404).json({ message: 'Transaction not found' });
+    res.json(updated);
+  } catch (err) {
+    res.status(400).json({ message: err.message });
+  }
+});
+
+router.delete('/transactions/:id', requireFounder, async (req, res) => {
+  try {
+    await Transaction.findByIdAndDelete(req.params.id);
+    res.json({ message: 'Transaction deleted' });
   } catch (err) {
     res.status(500).json({ message: err.message });
   }

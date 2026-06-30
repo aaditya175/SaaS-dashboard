@@ -1,5 +1,6 @@
 import { useState } from 'react';
 import { useApp, Transaction, formatCurrency, REVENUE_CHART_DATA } from '../store/appStore';
+import { api } from '../../lib/api';
 import Modal from '../components/Modal';
 import { ConfirmDialog } from '../components/Modal';
 import { AreaChart, Area, BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, PieChart, Pie, Cell } from 'recharts';
@@ -32,7 +33,7 @@ function TransactionForm({ tx, onSave, onClose }: { tx: Transaction | null; onSa
 
   const handleSave = () => {
     if (!validate()) return;
-    onSave({ id: form.id ?? `tr${Date.now()}`, invoiceNumber: form.type === 'revenue' ? `INV-2025-${String(Date.now()).slice(-3)}` : undefined, ...form } as Transaction);
+    onSave({ ...form } as Transaction);
     onClose();
   };
 
@@ -111,7 +112,7 @@ const CustomTooltip = ({ active, payload, label }: any) => {
 const PIE_COLORS = ['#7c3aed', '#06b6d4', '#10b981', '#f59e0b', '#ef4444'];
 
 export default function Finance() {
-  const { transactions, setTransactions } = useApp();
+  const { transactions, setTransactions, currentFounder } = useApp();
   const [search, setSearch] = useState('');
   const [filterType, setFilterType] = useState<'all' | 'revenue' | 'expense'>('all');
   const [filterStatus, setFilterStatus] = useState<'all' | 'paid' | 'pending' | 'overdue'>('all');
@@ -136,12 +137,31 @@ export default function Finance() {
     value: transactions.filter(t => t.type === 'expense' && t.category === cat).reduce((s, t) => s + t.amount, 0),
   })).filter(d => d.value > 0);
 
-  const handleSave = (tx: Transaction) => {
-    setTransactions(prev => {
-      const idx = prev.findIndex(t => t.id === tx.id);
-      if (idx >= 0) { const n = [...prev]; n[idx] = tx; return n; }
-      return [...prev, tx];
-    });
+  const handleSave = async (tx: Transaction) => {
+    try {
+      if (editTx) {
+        const updated = await api.put(`/transactions/${tx.id}`, tx, currentFounder);
+        setTransactions(prev => prev.map(t => t.id === tx.id ? updated : t));
+      } else {
+        const created = await api.post('/transactions', tx, currentFounder);
+        setTransactions(prev => [...prev, created]);
+      }
+    } catch (err) {
+      console.error(err);
+      alert('Error saving transaction.');
+    }
+  };
+
+  const handleDelete = async () => {
+    if (!deletingId) return;
+    try {
+      await api.delete(`/transactions/${deletingId}`, currentFounder);
+      setTransactions(prev => prev.filter(t => t.id !== deletingId));
+      setDeletingId(null);
+    } catch (err) {
+      console.error(err);
+      alert('Error deleting transaction.');
+    }
   };
 
   return (
@@ -287,7 +307,7 @@ export default function Finance() {
           <TransactionForm tx={editTx} onSave={handleSave} onClose={() => setEditTx(undefined)} />
         </Modal>
       )}
-      <ConfirmDialog open={!!deletingId} onClose={() => setDeletingId(null)} onConfirm={() => deletingId && setTransactions(t => t.filter(x => x.id !== deletingId))} title="Delete Transaction" message="Delete this transaction record?" danger />
+      <ConfirmDialog open={!!deletingId} onClose={() => setDeletingId(null)} onConfirm={handleDelete} title="Delete Transaction" message="Are you sure you want to delete this transaction?" danger />
     </div>
   );
 }

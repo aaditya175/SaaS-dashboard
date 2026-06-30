@@ -20,7 +20,7 @@ function ProjectCard({ project, onEdit, onDelete }: { project: Project; onEdit: 
   useEffect(() => {
     if (project.githubRepo) {
       setLoadingCommits(true);
-      fetch(`https://api.github.com/repos/${project.githubRepo}/commits?per_page=3`)
+      fetch(`https://api.github.com/repos/${project.githubRepo}/commits?per_page=3&sha=aaditya`)
         .then(res => res.json())
         .then(data => {
           if (Array.isArray(data)) setCommits(data);
