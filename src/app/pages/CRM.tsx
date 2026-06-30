@@ -196,9 +196,14 @@ export default function CRM() {
     if (direction === 'left' && currentIndex > 0) newStage = LEAD_STAGES[currentIndex - 1];
     if (direction === 'right' && currentIndex < LEAD_STAGES.length - 1) newStage = LEAD_STAGES[currentIndex + 1];
     if (newStage === lead.stage) return;
-    
     // Optimistic update
     setLeads(prev => prev.map(l => l.id === id ? { ...l, stage: newStage } : l));
+    
+    // Auto-scroll to the new stage column
+    setTimeout(() => {
+      document.getElementById(`stage-${newStage}`)?.scrollIntoView({ behavior: 'smooth', block: 'nearest', inline: 'center' });
+    }, 50);
+
     try {
       await api.put(`/leads/${id}`, { stage: newStage }, currentFounder);
     } catch (err) {
@@ -245,7 +250,7 @@ export default function CRM() {
             const stageLeads = filtered.filter(l => l.stage === stage);
             const stageValue = stageLeads.reduce((s, l) => s + l.value, 0);
             return (
-              <div key={stage} className={`flex-shrink-0 w-64 rounded-xl border p-3 ${STAGE_COLORS[stage]}`}>
+              <div id={`stage-${stage}`} key={stage} className={`flex-shrink-0 w-64 rounded-xl border p-3 ${STAGE_COLORS[stage]}`}>
                 <div className="flex items-center justify-between mb-3">
                   <div>
                     <span className={`text-xs font-bold px-2 py-0.5 rounded-full ${getStageColor(stage)}`}>{stage}</span>
