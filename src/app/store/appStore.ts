@@ -49,6 +49,7 @@ export interface Project {
   budget: number;
   spent: number;
   tasks: Task[];
+  updatedBy?: string;
 }
 
 export interface Client {
@@ -68,6 +69,7 @@ export interface Client {
   notes: string;
   joinedDate: string;
   industry: string;
+  updatedBy?: string;
 }
 
 export interface Transaction {
@@ -285,9 +287,9 @@ const AppContext = createContext<AppState | null>(null);
 import { api } from '../../lib/api';
 
 export function AppProvider({ children }: { children: ReactNode }) {
-  const [leads, setLeads] = useState<Lead[]>(INITIAL_LEADS);
-  const [projects, setProjects] = useState<Project[]>(INITIAL_PROJECTS);
-  const [clients, setClients] = useState<Client[]>(INITIAL_CLIENTS);
+  const [leads, setLeads] = useState<Lead[]>([]);
+  const [projects, setProjects] = useState<Project[]>([]);
+  const [clients, setClients] = useState<Client[]>([]);
   const [transactions, setTransactions] = useState<Transaction[]>(INITIAL_TRANSACTIONS);
   const [meetings, setMeetings] = useState<Meeting[]>(INITIAL_MEETINGS);
   const [kbDocs, setKbDocs] = useState<KBDocument[]>(INITIAL_KB);

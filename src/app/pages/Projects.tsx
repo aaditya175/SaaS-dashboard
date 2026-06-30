@@ -25,6 +25,7 @@ function ProjectCard({ project, onEdit, onDelete }: { project: Project; onEdit: 
         <div className="flex-1 min-w-0">
           <p className="font-semibold text-foreground text-sm leading-snug truncate">{project.name}</p>
           <p className="text-xs text-muted-foreground mt-0.5">{project.client}</p>
+          {project.updatedBy && <p className="text-[10px] text-muted-foreground/60">by {project.updatedBy}</p>}
         </div>
         <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
           <button onClick={() => onEdit(project)} className="w-7 h-7 rounded-lg hover:bg-primary/10 hover:text-primary flex items-center justify-center text-muted-foreground"><Edit2 className="w-3.5 h-3.5" /></button>
@@ -87,6 +88,7 @@ function ProjectCard({ project, onEdit, onDelete }: { project: Project; onEdit: 
 }
 
 function ProjectForm({ project, onSave, onClose }: { project: Project | null; onSave: (p: Project) => void; onClose: () => void }) {
+  const { clients, founders } = useApp();
   const [form, setForm] = useState<Partial<Project>>(project ?? {
     name: '', client: '', status: 'planning', priority: 'medium', assignees: [], progress: 0,
     startDate: new Date().toISOString().split('T')[0], deadline: '', description: '', budget: 0, spent: 0, tasks: []
@@ -109,6 +111,14 @@ function ProjectForm({ project, onSave, onClose }: { project: Project | null; on
     setForm(p => ({ ...p, assignees: vals }));
   };
 
+  // Assignee checkboxes
+  const toggleAssignee = (name: string) => {
+    setForm(p => {
+      const current = p.assignees || [];
+      return { ...p, assignees: current.includes(name) ? current.filter(a => a !== name) : [...current, name] };
+    });
+  };
+
   const handleSave = () => {
     if (!validate()) return;
     onSave({ id: form.id ?? `p${Date.now()}`, tasks: [], ...form } as Project);
@@ -125,7 +135,10 @@ function ProjectForm({ project, onSave, onClose }: { project: Project | null; on
         </div>
         <div>
           <label className="block text-xs font-medium text-foreground mb-1">Client *</label>
-          <input value={form.client ?? ''} onChange={f('client')} className="w-full h-9 px-3 rounded-lg bg-input-background border border-border text-sm text-foreground focus:outline-none focus:ring-2 focus:ring-primary/40" />
+          <select value={form.client ?? ''} onChange={f('client')} className="w-full h-9 px-3 rounded-lg bg-input-background border border-border text-sm text-foreground focus:outline-none focus:ring-2 focus:ring-primary/40">
+            <option value="">Select client...</option>
+            {clients.map(c => <option key={c.id} value={c.company}>{c.company} — {c.name}</option>)}
+          </select>
           {errors.client && <p className="text-xs text-red-400 mt-0.5">{errors.client}</p>}
         </div>
         <div>
@@ -161,6 +174,19 @@ function ProjectForm({ project, onSave, onClose }: { project: Project | null; on
           <label className="block text-xs font-medium text-foreground mb-1">Description</label>
           <textarea value={form.description ?? ''} onChange={f('description')} rows={3} className="w-full px-3 py-2 rounded-lg bg-input-background border border-border text-sm text-foreground focus:outline-none resize-none" />
         </div>
+        <div className="col-span-2">
+          <label className="block text-xs font-medium text-foreground mb-1">Assignees</label>
+          <div className="flex flex-wrap gap-2">
+            {founders.map(fo => (
+              <button key={fo.id} type="button" onClick={() => toggleAssignee(fo.name)}
+                className={`px-3 py-1.5 rounded-lg text-xs font-medium transition-colors border ${
+                  (form.assignees || []).includes(fo.name)
+                    ? 'bg-primary/20 border-primary/50 text-primary'
+                    : 'bg-muted border-border text-muted-foreground hover:text-foreground'
+                }`}>{fo.name}</button>
+            ))}
+          </div>
+        </div>
       </div>
       <div className="flex justify-end gap-3">
         <button onClick={onClose} className="px-4 py-2 text-sm border border-border rounded-lg hover:bg-muted">Cancel</button>
@@ -171,7 +197,7 @@ function ProjectForm({ project, onSave, onClose }: { project: Project | null; on
 }
 
 export default function Projects() {
-  const { projects, setProjects, currentFounder } = useApp();
+  const { projects, setProjects, clients, currentFounder, founders } = useApp();
   const [search, setSearch] = useState('');
   const [filterStatus, setFilterStatus] = useState<ProjectStatus | 'all'>('all');
   const [view, setView] = useState<'grid' | 'list'>('grid');
@@ -193,7 +219,7 @@ export default function Projects() {
 
   const handleSave = async (project: Project) => {
     try {
-      if (project.id && !project.id.startsWith('p')) {
+      if (project.id && project.id.length === 24) {
         const updated = await api.put(`/projects/${project.id}`, project, currentFounder);
         setProjects(prev => prev.map(p => p.id === project.id ? updated : p));
       } else {
@@ -201,6 +227,15 @@ export default function Projects() {
         const created = await api.post('/projects', rest, currentFounder);
         setProjects(prev => [...prev, created]);
       }
+    } catch (err) {
+      console.error(err);
+    }
+  };
+
+  const handleDelete = async (id: string) => {
+    try {
+      await api.delete(`/projects/${id}`, currentFounder);
+      setProjects(prev => prev.filter(p => p.id !== id));
     } catch (err) {
       console.error(err);
     }
@@ -305,7 +340,7 @@ export default function Projects() {
           <ProjectForm project={editProject} onSave={handleSave} onClose={() => setEditProject(undefined)} />
         </Modal>
       )}
-      <ConfirmDialog open={!!deletingId} onClose={() => setDeletingId(null)} onConfirm={() => deletingId && setProjects(p => p.filter(x => x.id !== deletingId))} title="Delete Project" message="Delete this project and all its tasks? This cannot be undone." danger />
+      <ConfirmDialog open={!!deletingId} onClose={() => setDeletingId(null)} onConfirm={() => deletingId && handleDelete(deletingId)} title="Delete Project" message="Delete this project and all its tasks? This cannot be undone." danger />
     </div>
   );
 }

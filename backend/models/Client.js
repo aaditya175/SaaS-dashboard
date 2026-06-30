@@ -12,7 +12,13 @@ const clientSchema = new mongoose.Schema({
   totalRevenue: { type: Number, default: 0 },
   satisfaction: { type: Number, default: 5 },
   tags: [{ type: String }],
-  lastContact: { type: String }
+  lastContact: { type: String },
+  contractValue: { type: Number, default: 0 },
+  renewalDate: { type: String },
+  industry: { type: String },
+  notes: { type: String },
+  joinedDate: { type: String },
+  updatedBy: { type: String }
 }, {
   timestamps: true,
 });

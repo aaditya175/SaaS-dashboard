@@ -13,7 +13,8 @@ const projectSchema = new mongoose.Schema({
   description: { type: String },
   budget: { type: Number, default: 0 },
   spent: { type: Number, default: 0 },
-  tasks: [{ type: Object }]
+  tasks: [{ type: Object }],
+  updatedBy: { type: String }
 }, {
   timestamps: true,
 });

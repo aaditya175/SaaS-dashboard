@@ -18,6 +18,12 @@ const requireFounder = (req, res, next) => {
   next();
 };
 
+// Helper to get founder name
+const getFounderName = async (founderId) => {
+  const founder = await Founder.findById(founderId);
+  return founder ? founder.name : 'Unknown';
+};
+
 // --- Founders ---
 router.get('/founders', async (req, res) => {
   try {
@@ -38,7 +44,7 @@ router.post('/founders', async (req, res) => {
   }
 });
 
-// --- Leads (CRM) ---
+// --- Leads (CRM) — GLOBAL visibility ---
 router.get('/leads', requireFounder, async (req, res) => {
   try {
     const leads = await Lead.find();
@@ -51,8 +57,8 @@ router.get('/leads', requireFounder, async (req, res) => {
 
 router.post('/leads', requireFounder, async (req, res) => {
   try {
-    const founder = await Founder.findById(req.founderId);
-    const newLead = new Lead({ ...req.body, founderId: req.founderId, updatedBy: founder ? founder.name : 'Unknown' });
+    const founderName = await getFounderName(req.founderId);
+    const newLead = new Lead({ ...req.body, founderId: req.founderId, updatedBy: founderName });
     const saved = await newLead.save();
     res.status(201).json(saved);
   } catch (err) {
@@ -62,22 +68,55 @@ router.post('/leads', requireFounder, async (req, res) => {
 
 router.put('/leads/:id', requireFounder, async (req, res) => {
   try {
-    const founder = await Founder.findById(req.founderId);
-    const updated = await Lead.findOneAndUpdate(
-      { _id: req.params.id },
-      { ...req.body, updatedBy: founder ? founder.name : 'Unknown' },
+    const founderName = await getFounderName(req.founderId);
+    const updateData = { ...req.body, updatedBy: founderName };
+    
+    const updated = await Lead.findByIdAndUpdate(
+      req.params.id,
+      updateData,
       { new: true }
     );
+    if (!updated) return res.status(404).json({ message: 'Lead not found' });
+
+    // Auto-create client when lead moves to "Won"
+    if (req.body.stage === 'Won') {
+      const existingClient = await Client.findOne({ company: updated.company });
+      if (!existingClient) {
+        const newClient = new Client({
+          founderId: req.founderId,
+          name: updated.name,
+          company: updated.company,
+          email: updated.email,
+          phone: updated.phone,
+          status: 'active',
+          totalRevenue: updated.value || 0,
+          contractValue: updated.value || 0,
+          joinedDate: new Date().toISOString().split('T')[0],
+          updatedBy: founderName
+        });
+        await newClient.save();
+      }
+    }
+
     res.json(updated);
   } catch (err) {
     res.status(400).json({ message: err.message });
   }
 });
 
-// --- Projects ---
+router.delete('/leads/:id', requireFounder, async (req, res) => {
+  try {
+    await Lead.findByIdAndDelete(req.params.id);
+    res.json({ message: 'Lead deleted' });
+  } catch (err) {
+    res.status(500).json({ message: err.message });
+  }
+});
+
+// --- Projects — GLOBAL visibility ---
 router.get('/projects', requireFounder, async (req, res) => {
   try {
-    const projects = await Project.find({ founderId: req.founderId });
+    const projects = await Project.find();
     res.json(projects);
   } catch (err) {
     res.status(500).json({ message: err.message });
@@ -86,7 +125,8 @@ router.get('/projects', requireFounder, async (req, res) => {
 
 router.post('/projects', requireFounder, async (req, res) => {
   try {
-    const newProject = new Project({ ...req.body, founderId: req.founderId });
+    const founderName = await getFounderName(req.founderId);
+    const newProject = new Project({ ...req.body, founderId: req.founderId, updatedBy: founderName });
     const saved = await newProject.save();
     res.status(201).json(saved);
   } catch (err) {
@@ -96,21 +136,32 @@ router.post('/projects', requireFounder, async (req, res) => {
 
 router.put('/projects/:id', requireFounder, async (req, res) => {
   try {
-    const updated = await Project.findOneAndUpdate(
-      { _id: req.params.id, founderId: req.founderId },
-      req.body,
+    const founderName = await getFounderName(req.founderId);
+    const updated = await Project.findByIdAndUpdate(
+      req.params.id,
+      { ...req.body, updatedBy: founderName },
       { new: true }
     );
+    if (!updated) return res.status(404).json({ message: 'Project not found' });
     res.json(updated);
   } catch (err) {
     res.status(400).json({ message: err.message });
   }
 });
 
-// --- Clients ---
+router.delete('/projects/:id', requireFounder, async (req, res) => {
+  try {
+    await Project.findByIdAndDelete(req.params.id);
+    res.json({ message: 'Project deleted' });
+  } catch (err) {
+    res.status(500).json({ message: err.message });
+  }
+});
+
+// --- Clients — GLOBAL visibility ---
 router.get('/clients', requireFounder, async (req, res) => {
   try {
-    const clients = await Client.find({ founderId: req.founderId });
+    const clients = await Client.find();
     res.json(clients);
   } catch (err) {
     res.status(500).json({ message: err.message });
@@ -119,11 +170,36 @@ router.get('/clients', requireFounder, async (req, res) => {
 
 router.post('/clients', requireFounder, async (req, res) => {
   try {
-    const newClient = new Client({ ...req.body, founderId: req.founderId });
+    const founderName = await getFounderName(req.founderId);
+    const newClient = new Client({ ...req.body, founderId: req.founderId, updatedBy: founderName });
     const saved = await newClient.save();
     res.status(201).json(saved);
   } catch (err) {
     res.status(400).json({ message: err.message });
+  }
+});
+
+router.put('/clients/:id', requireFounder, async (req, res) => {
+  try {
+    const founderName = await getFounderName(req.founderId);
+    const updated = await Client.findByIdAndUpdate(
+      req.params.id,
+      { ...req.body, updatedBy: founderName },
+      { new: true }
+    );
+    if (!updated) return res.status(404).json({ message: 'Client not found' });
+    res.json(updated);
+  } catch (err) {
+    res.status(400).json({ message: err.message });
+  }
+});
+
+router.delete('/clients/:id', requireFounder, async (req, res) => {
+  try {
+    await Client.findByIdAndDelete(req.params.id);
+    res.json({ message: 'Client deleted' });
+  } catch (err) {
+    res.status(500).json({ message: err.message });
   }
 });
 

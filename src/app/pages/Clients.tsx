@@ -182,7 +182,7 @@ export default function Clients() {
 
   const handleSave = async (client: Client) => {
     try {
-      if (client.id && !client.id.startsWith('c')) {
+      if (client.id && client.id.length === 24) {
         const updated = await api.put(`/clients/${client.id}`, client, currentFounder);
         setClients(prev => prev.map(c => c.id === client.id ? updated : c));
       } else {
@@ -190,6 +190,15 @@ export default function Clients() {
         const created = await api.post('/clients', rest, currentFounder);
         setClients(prev => [...prev, created]);
       }
+    } catch (err) {
+      console.error(err);
+    }
+  };
+
+  const handleDelete = async (id: string) => {
+    try {
+      await api.delete(`/clients/${id}`, currentFounder);
+      setClients(prev => prev.filter(c => c.id !== id));
     } catch (err) {
       console.error(err);
     }
@@ -241,6 +250,7 @@ export default function Clients() {
               <p className="font-semibold text-foreground">{c.name}</p>
               <p className="text-xs text-muted-foreground">{c.company}</p>
               <p className="text-xs text-muted-foreground">{c.industry}</p>
+              {c.updatedBy && <p className="text-[10px] text-muted-foreground/60">by {c.updatedBy}</p>}
             </div>
             <div className="flex items-center gap-1">
               {[1,2,3,4,5].map(s => <Star key={s} className={`w-3 h-3 ${s <= Math.round(c.satisfaction) ? 'text-amber-400 fill-amber-400' : 'text-muted'}`} />)}
@@ -277,7 +287,7 @@ export default function Clients() {
         </Modal>
       )}
 
-      <ConfirmDialog open={!!deletingId} onClose={() => setDeletingId(null)} onConfirm={() => deletingId && setClients(c => c.filter(x => x.id !== deletingId))} title="Remove Client" message="Remove this client record? Their project history will remain." danger />
+      <ConfirmDialog open={!!deletingId} onClose={() => setDeletingId(null)} onConfirm={() => deletingId && handleDelete(deletingId)} title="Remove Client" message="Remove this client record? Their project history will remain." danger />
     </div>
   );
 }

@@ -49,7 +49,7 @@ function LeadCard({ lead, onEdit, onDelete, onMove }: { lead: Lead; onEdit: (l: 
       <div className="space-y-1.5 text-xs text-muted-foreground flex-1">
         <div className="flex items-center justify-between">
           <div className="flex items-center gap-1.5"><Tag className="w-3 h-3" />{lead.assignee}</div>
-          {lead.updatedBy && <span className="text-[10px] text-muted-foreground/70 truncate max-w-[90px]">Updated: {lead.updatedBy.split(' ')[0]}</span>}
+          {lead.updatedBy && <span className="text-[10px] px-1.5 py-0.5 rounded bg-muted text-muted-foreground/70 truncate max-w-[100px]">by {lead.updatedBy}</span>}
         </div>
         <div className="flex items-center gap-1.5"><Calendar className="w-3 h-3" />Last: {lead.lastContact}</div>
         {lead.tags.length > 0 && (
@@ -73,7 +73,7 @@ function LeadCard({ lead, onEdit, onDelete, onMove }: { lead: Lead; onEdit: (l: 
 }
 
 function LeadForm({ lead, onSave, onClose }: { lead: Partial<Lead> | null; onSave: (l: Lead) => void; onClose: () => void }) {
-  const { currentFounder } = useApp();
+  const { currentFounder, founders } = useApp();
   const [form, setForm] = useState<Partial<Lead>>(lead ?? {
     name: '', company: '', email: '', phone: '', value: 0,
     stage: 'Lead', assignee: 'Aryan Shah', tags: [], notes: '', source: 'LinkedIn', createdAt: new Date().toISOString().split('T')[0], lastContact: new Date().toISOString().split('T')[0]
@@ -141,7 +141,7 @@ function LeadForm({ lead, onSave, onClose }: { lead: Partial<Lead> | null; onSav
         <div>
           <label className="block text-xs font-medium text-foreground mb-1">Assignee</label>
           <select value={form.assignee ?? ''} onChange={f('assignee')} className="w-full h-9 px-3 rounded-lg bg-input-background border border-border text-sm text-foreground focus:outline-none focus:ring-2 focus:ring-primary/40">
-            {['Aryan Shah', 'Priya Mehta', 'Rahul Patel', 'Sneha Kapoor', 'Dev Sharma'].map(n => <option key={n}>{n}</option>)}
+            {founders.map(fo => <option key={fo.id} value={fo.name}>{fo.name}</option>)}
           </select>
         </div>
       </div>
@@ -160,7 +160,7 @@ function LeadForm({ lead, onSave, onClose }: { lead: Partial<Lead> | null; onSav
 }
 
 export default function CRM() {
-  const { leads, setLeads, currentFounder } = useApp();
+  const { leads, setLeads, currentFounder, founders } = useApp();
   const [search, setSearch] = useState('');
   const [filterStage, setFilterStage] = useState<LeadStage | 'all'>('all');
   const [editLead, setEditLead] = useState<Lead | null | undefined>(undefined);
@@ -175,7 +175,7 @@ export default function CRM() {
 
   const handleSave = async (lead: Lead) => {
     try {
-      if (lead.id && !lead.id.startsWith('l')) {
+      if (lead.id && lead.id.length === 24) {
         const updated = await api.put(`/leads/${lead.id}`, lead, currentFounder);
         setLeads(prev => prev.map(l => l.id === lead.id ? updated : l));
       } else {
@@ -190,7 +190,7 @@ export default function CRM() {
 
   const handleDelete = async (id: string) => {
     try {
-      if (!id.startsWith('l')) await api.delete(`/leads/${id}`, currentFounder);
+      await api.delete(`/leads/${id}`, currentFounder);
       setLeads(prev => prev.filter(l => l.id !== id));
     } catch (err) {
       console.error(err);
@@ -209,7 +209,7 @@ export default function CRM() {
     // Optimistic update
     setLeads(prev => prev.map(l => l.id === id ? { ...l, stage: newStage } : l));
     try {
-      if (!id.startsWith('l')) await api.put(`/leads/${id}`, { stage: newStage }, currentFounder);
+      await api.put(`/leads/${id}`, { stage: newStage }, currentFounder);
     } catch (err) {
       // Revert if error
       setLeads(prev => prev.map(l => l.id === id ? { ...l, stage: lead.stage } : l));
@@ -305,7 +305,7 @@ export default function CRM() {
                     <td className="px-4 py-3 font-semibold text-foreground">{formatCurrency(l.value)}</td>
                     <td className="px-4 py-3">
                       <p className="text-muted-foreground">{l.assignee}</p>
-                      {l.updatedBy && <p className="text-[10px] text-muted-foreground/60">Updated: {l.updatedBy.split(' ')[0]}</p>}
+                      {l.updatedBy && <p className="text-[10px] text-muted-foreground/60">by {l.updatedBy}</p>}
                     </td>
                     <td className="px-4 py-3 text-muted-foreground">{l.source}</td>
                     <td className="px-4 py-3 text-muted-foreground">{l.lastContact}</td>
