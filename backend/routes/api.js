@@ -24,6 +24,20 @@ const getFounderName = async (founderId) => {
   return founder ? founder.name : 'Unknown';
 };
 
+// Middleware for Super Admin only
+const requireSuperAdmin = async (req, res, next) => {
+  const founderId = req.headers['x-founder-id'] || req.query.founderId;
+  if (!founderId) {
+    return res.status(400).json({ message: 'founderId is required' });
+  }
+  const founder = await Founder.findById(founderId);
+  if (!founder || founder.role !== 'Super Admin') {
+    return res.status(403).json({ message: 'Super Admin access required' });
+  }
+  req.founderId = founderId;
+  next();
+};
+
 // --- Founders ---
 router.get('/founders', async (req, res) => {
   try {
@@ -34,13 +48,36 @@ router.get('/founders', async (req, res) => {
   }
 });
 
-router.post('/founders', async (req, res) => {
+router.post('/founders', requireSuperAdmin, async (req, res) => {
   try {
     const newFounder = new Founder(req.body);
     const saved = await newFounder.save();
     res.status(201).json(saved);
   } catch (err) {
     res.status(400).json({ message: err.message });
+  }
+});
+
+router.put('/founders/:id', requireSuperAdmin, async (req, res) => {
+  try {
+    const updated = await Founder.findByIdAndUpdate(req.params.id, req.body, { new: true });
+    if (!updated) return res.status(404).json({ message: 'Founder not found' });
+    res.json(updated);
+  } catch (err) {
+    res.status(400).json({ message: err.message });
+  }
+});
+
+router.delete('/founders/:id', requireSuperAdmin, async (req, res) => {
+  try {
+    // Prevent self-deletion on the backend just in case
+    if (req.params.id === req.founderId) {
+      return res.status(400).json({ message: 'Cannot delete yourself' });
+    }
+    await Founder.findByIdAndDelete(req.params.id);
+    res.json({ message: 'Founder deleted' });
+  } catch (err) {
+    res.status(500).json({ message: err.message });
   }
 });
 

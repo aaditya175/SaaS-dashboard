@@ -2,7 +2,8 @@ import { useState, useMemo } from 'react';
 import { api } from '../../lib/api';
 import { useApp, FOUNDERS, Founder, formatCurrency } from '../store/appStore';
 import { RadarChart, Radar, PolarGrid, PolarAngleAxis, ResponsiveContainer, AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip } from 'recharts';
-import { Target, Zap, TrendingUp, Award, Calendar, CheckSquare, Coffee, Users } from 'lucide-react';
+import { Target, Zap, TrendingUp, Award, Calendar, CheckSquare, Coffee, Users, Edit2, Trash2 } from 'lucide-react';
+import Modal, { ConfirmDialog } from '../components/Modal';
 
 const PERSONAL_DATA: Record<string, { weeklyGoals: string[]; todayTasks: { text: string; done: boolean }[]; radarData: any[] }> = {
   f1: {
@@ -41,7 +42,7 @@ const PERF_DATA = [
   { week: 'Wk 6', score: 90 },
 ];
 
-function FounderTab({ founder, data }: { founder: Founder; data: typeof PERSONAL_DATA['f1'] }) {
+function FounderTab({ founder, data, isSuperAdmin, onEdit, onDelete }: { founder: Founder; data: typeof PERSONAL_DATA['f1']; isSuperAdmin: boolean; onEdit: () => void; onDelete: () => void }) {
   const [newTask, setNewTask] = useState('');
   const [tasks, setTasks] = useState(data.todayTasks);
   const completedTasks = tasks.filter(t => t.done).length;
@@ -49,12 +50,20 @@ function FounderTab({ founder, data }: { founder: Founder; data: typeof PERSONAL
   return (
     <div className="space-y-5">
       {/* Header card */}
-      <div className="rounded-2xl border p-6 flex flex-col sm:flex-row items-start sm:items-center gap-5" style={{ borderColor: `${founder.color}30`, background: `linear-gradient(135deg, ${founder.color}08, transparent)` }}>
+      <div className="group rounded-2xl border p-6 flex flex-col sm:flex-row items-start sm:items-center gap-5" style={{ borderColor: `${founder.color}30`, background: `linear-gradient(135deg, ${founder.color}08, transparent)` }}>
         <div className="w-16 h-16 rounded-2xl text-2xl font-bold text-white flex items-center justify-center flex-shrink-0" style={{ backgroundColor: founder.color }}>
           {founder.initials}
         </div>
         <div className="flex-1">
-          <h2 className="text-xl font-bold text-foreground font-display">{founder.name}</h2>
+          <div className="flex items-center gap-3">
+            <h2 className="text-xl font-bold text-foreground font-display">{founder.name}</h2>
+            {isSuperAdmin && (
+              <div className="flex gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
+                <button onClick={onEdit} className="p-1 hover:bg-muted rounded text-muted-foreground"><Edit2 className="w-4 h-4"/></button>
+                <button onClick={onDelete} className="p-1 hover:bg-red-500/20 text-red-500 rounded"><Trash2 className="w-4 h-4"/></button>
+              </div>
+            )}
+          </div>
           <p className="text-sm text-muted-foreground">{founder.role}</p>
           <div className="flex flex-wrap items-center gap-3 mt-2">
             <span className="text-sm font-semibold" style={{ color: founder.color }}>Level {founder.level}</span>
@@ -169,19 +178,59 @@ function FounderTab({ founder, data }: { founder: Founder; data: typeof PERSONAL
 export default function Founders() {
   const { currentFounder, setCurrentFounder, founders, setFounders } = useApp();
   const [showAdd, setShowAdd] = useState(false);
-  const [newFounder, setNewFounder] = useState({ name: '', role: '', color: '#3b82f6', initials: '' });
+  const [editFounder, setEditFounder] = useState<Founder | null>(null);
+  const [deleteFounderId, setDeleteFounderId] = useState<string | null>(null);
+  const [form, setForm] = useState<Partial<Founder>>({ name: '', role: '', color: '#3b82f6', initials: '' });
 
   const activeFounder = founders.find(f => f.id === currentFounder);
   const isSuperAdmin = activeFounder?.role === 'Super Admin';
 
-  const handleAdd = async () => {
+  const handleSave = async () => {
     try {
-      const created = await api.post('/founders', newFounder);
-      setFounders([...founders, created]);
-      setShowAdd(false);
+      if (editFounder) {
+        const updated = await api.put(`/founders/${editFounder.id}`, form, currentFounder);
+        setFounders(founders.map(f => f.id === editFounder.id ? updated : f));
+        setEditFounder(null);
+      } else {
+        const created = await api.post('/founders', form, currentFounder);
+        setFounders([...founders, created]);
+        setShowAdd(false);
+      }
     } catch (err) {
       console.error(err);
+      alert('Error saving founder. Make sure you have Super Admin privileges.');
     }
+  };
+
+  const handleDelete = async () => {
+    if (!deleteFounderId) return;
+    if (deleteFounderId === currentFounder) {
+      alert("You cannot delete yourself.");
+      setDeleteFounderId(null);
+      return;
+    }
+    
+    try {
+      await api.delete(`/founders/${deleteFounderId}`, currentFounder);
+      setFounders(founders.filter(f => f.id !== deleteFounderId));
+      if (currentFounder === deleteFounderId) {
+        setCurrentFounder(founders[0]?.id || '');
+      }
+      setDeleteFounderId(null);
+    } catch (err) {
+      console.error(err);
+      alert('Error deleting founder.');
+    }
+  };
+
+  const openAdd = () => {
+    setForm({ name: '', role: '', color: '#3b82f6', initials: '' });
+    setShowAdd(true);
+  };
+
+  const openEdit = (f: Founder) => {
+    setForm({ name: f.name, role: f.role, color: f.color, initials: f.initials });
+    setEditFounder(f);
   };
 
   return (
@@ -204,28 +253,51 @@ export default function Founders() {
           </button>
         ))}
         {isSuperAdmin && (
-          <button onClick={() => setShowAdd(true)} className="flex items-center gap-2 px-4 py-2.5 rounded-xl border border-dashed border-border bg-card text-muted-foreground hover:text-foreground hover:border-primary/30 transition-all text-sm font-medium">
+          <button onClick={openAdd} className="flex items-center gap-2 px-4 py-2.5 rounded-xl border border-dashed border-border bg-card text-muted-foreground hover:text-foreground hover:border-primary/30 transition-all text-sm font-medium">
             + Add Founder
           </button>
         )}
       </div>
 
-      {showAdd && isSuperAdmin && (
-        <div className="bg-card border border-border rounded-xl p-6">
-          <h3 className="text-lg font-bold mb-4">Add New Founder</h3>
-          <div className="grid grid-cols-2 gap-4 mb-4">
-            <input placeholder="Name" value={newFounder.name} onChange={e => setNewFounder({ ...newFounder, name: e.target.value })} className="px-3 py-2 bg-input-background border border-border rounded-lg" />
-            <input placeholder="Role" value={newFounder.role} onChange={e => setNewFounder({ ...newFounder, role: e.target.value })} className="px-3 py-2 bg-input-background border border-border rounded-lg" />
-            <input placeholder="Initials (e.g. JD)" value={newFounder.initials} onChange={e => setNewFounder({ ...newFounder, initials: e.target.value })} className="px-3 py-2 bg-input-background border border-border rounded-lg" />
-            <input type="color" value={newFounder.color} onChange={e => setNewFounder({ ...newFounder, color: e.target.value })} className="h-10 w-full rounded-lg cursor-pointer" />
+      <Modal open={showAdd || !!editFounder} onClose={() => { setShowAdd(false); setEditFounder(null); }} title={editFounder ? "Edit Founder" : "Add New Founder"}>
+        <div className="space-y-4">
+          <div className="grid grid-cols-2 gap-4">
+            <div>
+              <label className="block text-xs font-medium text-foreground mb-1">Name</label>
+              <input placeholder="Name" value={form.name || ''} onChange={e => setForm({ ...form, name: e.target.value })} className="w-full px-3 py-2 bg-input-background border border-border rounded-lg" />
+            </div>
+            <div>
+              <label className="block text-xs font-medium text-foreground mb-1">Role</label>
+              <input placeholder="Role" value={form.role || ''} onChange={e => setForm({ ...form, role: e.target.value })} className="w-full px-3 py-2 bg-input-background border border-border rounded-lg" />
+            </div>
+            <div>
+              <label className="block text-xs font-medium text-foreground mb-1">Initials (e.g. JD)</label>
+              <input placeholder="Initials" value={form.initials || ''} onChange={e => setForm({ ...form, initials: e.target.value })} className="w-full px-3 py-2 bg-input-background border border-border rounded-lg" />
+            </div>
+            <div>
+              <label className="block text-xs font-medium text-foreground mb-1">Color</label>
+              <input type="color" value={form.color || ''} onChange={e => setForm({ ...form, color: e.target.value })} className="h-[38px] w-full rounded-lg cursor-pointer bg-input-background border border-border p-1" />
+            </div>
           </div>
-          <button onClick={handleAdd} className="px-4 py-2 bg-primary text-white rounded-lg">Save Founder</button>
+          <div className="flex justify-end gap-3 pt-2">
+            <button onClick={() => { setShowAdd(false); setEditFounder(null); }} className="px-4 py-2 text-sm border border-border rounded-lg hover:bg-muted">Cancel</button>
+            <button onClick={handleSave} className="px-4 py-2 bg-primary text-white rounded-lg text-sm font-medium">Save Founder</button>
+          </div>
         </div>
-      )}
+      </Modal>
+
+      <ConfirmDialog 
+        open={!!deleteFounderId} 
+        onClose={() => setDeleteFounderId(null)} 
+        onConfirm={handleDelete} 
+        title="Delete Founder" 
+        message="Are you sure you want to permanently delete this founder? This cannot be undone." 
+        danger 
+      />
 
       {/* Selected founder content */}
       {founders.map(f => currentFounder === f.id && (
-        <FounderTab key={f.id} founder={f} data={PERSONAL_DATA[f.id] || PERSONAL_DATA['f1']} />
+        <FounderTab key={f.id} founder={f} data={PERSONAL_DATA[f.id] || PERSONAL_DATA['f1']} isSuperAdmin={isSuperAdmin} onEdit={() => openEdit(f)} onDelete={() => setDeleteFounderId(f.id)} />
       ))}
     </div>
   );
