@@ -17,10 +17,13 @@ const STAGE_COLORS: Record<LeadStage, string> = {
   Lost: 'border-red-500/30 bg-red-500/5',
 };
 
-function LeadCard({ lead, onEdit, onDelete, onMove }: { lead: Lead; onEdit: (l: Lead) => void; onDelete: (id: string) => void; onMove?: (id: string, direction: 'left' | 'right') => void }) {
+function LeadCard({ lead, isSelected, onClick, onEdit, onDelete }: { lead: Lead; isSelected: boolean; onClick: () => void; onEdit: (l: Lead) => void; onDelete: (id: string) => void }) {
   const [menuOpen, setMenuOpen] = useState(false);
   return (
-    <div className="bg-card border border-border rounded-xl p-4 cursor-pointer hover:border-primary/30 hover:shadow-md hover:shadow-primary/5 transition-all group flex flex-col">
+    <div 
+      onClick={onClick}
+      className={`border rounded-xl p-4 cursor-pointer transition-all group flex flex-col ${isSelected ? 'border-primary shadow-md shadow-primary/20 bg-primary/5' : 'border-border bg-card hover:border-primary/40 hover:shadow-md hover:shadow-primary/5'}`}
+    >
       <div className="flex items-start justify-between gap-2 mb-3">
         <div>
           <p className="text-sm font-semibold text-foreground leading-snug">{lead.name}</p>
@@ -58,16 +61,6 @@ function LeadCard({ lead, onEdit, onDelete, onMove }: { lead: Lead; onEdit: (l: 
           </div>
         )}
       </div>
-      {onMove && (
-        <div className="flex items-center gap-2 mt-4 pt-3 border-t border-border/50">
-          <button onClick={(e) => { e.stopPropagation(); onMove(lead.id, 'left'); }} className="flex-1 py-1 flex justify-center hover:bg-muted rounded-md text-muted-foreground hover:text-foreground transition-colors">
-            <span className="text-xs">&lt;</span>
-          </button>
-          <button onClick={(e) => { e.stopPropagation(); onMove(lead.id, 'right'); }} className="flex-1 py-1 flex justify-center hover:bg-muted rounded-md text-muted-foreground hover:text-foreground transition-colors">
-            <span className="text-xs">&gt;</span>
-          </button>
-        </div>
-      )}
     </div>
   );
 }
@@ -262,7 +255,7 @@ export default function CRM() {
                 </div>
                 <div className="space-y-2">
                   {stageLeads.map(l => (
-                    <LeadCard key={l.id} lead={l} onEdit={setEditLead} onDelete={setDeletingId} onMove={handleMoveLead} />
+                    <LeadCard key={l.id} lead={l} isSelected={selectedLeadId === l.id} onClick={() => setSelectedLeadId(selectedLeadId === l.id ? null : l.id)} onEdit={setEditLead} onDelete={setDeletingId} />
                   ))}
                   {stageLeads.length === 0 && (
                     <div className="rounded-lg border border-dashed border-border p-4 text-center text-xs text-muted-foreground">
