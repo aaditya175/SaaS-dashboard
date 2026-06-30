@@ -23,8 +23,6 @@ function ClientForm({ client, onSave, onClose }: { client: Client | null; onSave
   const validate = () => {
     const e: Record<string, string> = {};
     if (!form.name?.trim()) e.name = 'Name required';
-    if (!form.company?.trim()) e.company = 'Company required';
-    if (!form.email?.trim()) e.email = 'Email required';
     setErrors(e); return Object.keys(e).length === 0;
   };
 
@@ -33,7 +31,7 @@ function ClientForm({ client, onSave, onClose }: { client: Client | null; onSave
 
   const handleSave = () => {
     if (!validate()) return;
-    onSave({ id: form.id ?? `c${Date.now()}`, projectIds: [], tags: [], ...form } as Client);
+    onSave({ ...form, projectIds: form.projectIds || [], tags: form.tags || [] } as Client);
     onClose();
   };
 
@@ -46,12 +44,12 @@ function ClientForm({ client, onSave, onClose }: { client: Client | null; onSave
           {errors.name && <p className="text-xs text-red-400 mt-0.5">{errors.name}</p>}
         </div>
         <div>
-          <label className="block text-xs font-medium text-foreground mb-1">Company *</label>
+          <label className="block text-xs font-medium text-foreground mb-1">Company</label>
           <input value={form.company ?? ''} onChange={f('company')} className="w-full h-9 px-3 rounded-lg bg-input-background border border-border text-sm text-foreground focus:outline-none focus:ring-2 focus:ring-primary/40" />
           {errors.company && <p className="text-xs text-red-400 mt-0.5">{errors.company}</p>}
         </div>
         <div>
-          <label className="block text-xs font-medium text-foreground mb-1">Email *</label>
+          <label className="block text-xs font-medium text-foreground mb-1">Email</label>
           <input value={form.email ?? ''} onChange={f('email')} type="email" className="w-full h-9 px-3 rounded-lg bg-input-background border border-border text-sm text-foreground focus:outline-none focus:ring-2 focus:ring-primary/40" />
           {errors.email && <p className="text-xs text-red-400 mt-0.5">{errors.email}</p>}
         </div>
@@ -182,12 +180,11 @@ export default function Clients() {
 
   const handleSave = async (client: Client) => {
     try {
-      if (client.id && client.id.length === 24) {
+      if (client.id) {
         const updated = await api.put(`/clients/${client.id}`, client, currentFounder);
         setClients(prev => prev.map(c => c.id === client.id ? updated : c));
       } else {
-        const { id, ...rest } = client;
-        const created = await api.post('/clients', rest, currentFounder);
+        const created = await api.post('/clients', client, currentFounder);
         setClients(prev => [...prev, created]);
       }
     } catch (err) {

@@ -83,16 +83,14 @@ function LeadForm({ lead, onSave, onClose }: { lead: Partial<Lead> | null; onSav
   const validate = () => {
     const e: Record<string, string> = {};
     if (!form.name?.trim()) e.name = 'Name is required';
-    if (!form.company?.trim()) e.company = 'Company is required';
-    if (!form.email?.trim()) e.email = 'Email is required';
-    if ((form.value ?? 0) <= 0) e.value = 'Value must be positive';
+    if ((form.value ?? 0) < 0) e.value = 'Value must be positive';
     setErrors(e);
     return Object.keys(e).length === 0;
   };
 
   const handleSave = () => {
     if (!validate()) return;
-    onSave({ id: form.id ?? `l${Date.now()}`, ...form } as Lead);
+    onSave({ ...form } as Lead);
     onClose();
   };
 
@@ -108,12 +106,12 @@ function LeadForm({ lead, onSave, onClose }: { lead: Partial<Lead> | null; onSav
           {errors.name && <p className="text-xs text-red-400 mt-0.5">{errors.name}</p>}
         </div>
         <div>
-          <label className="block text-xs font-medium text-foreground mb-1">Company *</label>
+          <label className="block text-xs font-medium text-foreground mb-1">Company</label>
           <input value={form.company ?? ''} onChange={f('company')} className="w-full h-9 px-3 rounded-lg bg-input-background border border-border text-sm text-foreground focus:outline-none focus:ring-2 focus:ring-primary/40" placeholder="TechNova Solutions" />
           {errors.company && <p className="text-xs text-red-400 mt-0.5">{errors.company}</p>}
         </div>
         <div>
-          <label className="block text-xs font-medium text-foreground mb-1">Email *</label>
+          <label className="block text-xs font-medium text-foreground mb-1">Email</label>
           <input value={form.email ?? ''} onChange={f('email')} type="email" className="w-full h-9 px-3 rounded-lg bg-input-background border border-border text-sm text-foreground focus:outline-none focus:ring-2 focus:ring-primary/40" />
           {errors.email && <p className="text-xs text-red-400 mt-0.5">{errors.email}</p>}
         </div>
@@ -165,6 +163,7 @@ export default function CRM() {
   const [filterStage, setFilterStage] = useState<LeadStage | 'all'>('all');
   const [editLead, setEditLead] = useState<Lead | null | undefined>(undefined);
   const [deletingId, setDeletingId] = useState<string | null>(null);
+  const [selectedLeadId, setSelectedLeadId] = useState<string | null>(null);
   const [view, setView] = useState<'kanban' | 'list'>('kanban');
 
   const filtered = leads.filter(l => {
@@ -175,12 +174,11 @@ export default function CRM() {
 
   const handleSave = async (lead: Lead) => {
     try {
-      if (lead.id && lead.id.length === 24) {
+      if (lead.id) {
         const updated = await api.put(`/leads/${lead.id}`, lead, currentFounder);
         setLeads(prev => prev.map(l => l.id === lead.id ? updated : l));
       } else {
-        const { id, ...rest } = lead;
-        const created = await api.post('/leads', rest, currentFounder);
+        const created = await api.post('/leads', lead, currentFounder);
         setLeads(prev => [...prev, created]);
       }
     } catch (err) {
@@ -309,12 +307,7 @@ export default function CRM() {
                     </td>
                     <td className="px-4 py-3 text-muted-foreground">{l.source}</td>
                     <td className="px-4 py-3 text-muted-foreground">{l.lastContact}</td>
-                    <td className="px-4 py-3">
-                      <div className="flex items-center gap-1">
-                        <button onClick={() => setEditLead(l)} className="w-7 h-7 rounded-lg hover:bg-primary/10 hover:text-primary flex items-center justify-center text-muted-foreground transition-colors"><Edit2 className="w-3.5 h-3.5" /></button>
-                        <button onClick={() => setDeletingId(l.id)} className="w-7 h-7 rounded-lg hover:bg-red-500/10 hover:text-red-400 flex items-center justify-center text-muted-foreground transition-colors"><Trash2 className="w-3.5 h-3.5" /></button>
-                      </div>
-                    </td>
+                    <td className="px-4 py-3" />
                   </tr>
                 ))}
               </tbody>
@@ -325,20 +318,62 @@ export default function CRM() {
 
       {/* Edit/Add modal */}
       {editLead !== undefined && (
-        <Modal open title={editLead ? 'Edit Lead' : 'Add New Lead'} onClose={() => setEditLead(undefined)} size="lg">
+        <Modal open title={editLead ? 'Edit Lead' : 'Add Lead'} onClose={() => setEditLead(undefined)} size="lg">
           <LeadForm lead={editLead} onSave={handleSave} onClose={() => setEditLead(undefined)} />
         </Modal>
       )}
 
-      {/* Delete confirm */}
-      <ConfirmDialog
-        open={!!deletingId}
-        onClose={() => setDeletingId(null)}
-        onConfirm={() => deletingId && handleDelete(deletingId)}
-        title="Delete Lead"
-        message="Are you sure you want to delete this lead? This action cannot be undone."
-        danger
-      />
+      {/* Floating Action Bar for Selected Lead */}
+      {selectedLeadId && view === 'kanban' && (
+        <div className="fixed bottom-6 left-1/2 -translate-x-1/2 z-40 bg-card border border-border shadow-2xl rounded-2xl p-2 flex items-center gap-2 animate-in slide-in-from-bottom-5">
+          {(() => {
+            const lead = leads.find(l => l.id === selectedLeadId);
+            if (!lead) return null;
+            const currentIndex = LEAD_STAGES.indexOf(lead.stage);
+            return (
+              <>
+                <button
+                  disabled={currentIndex === 0}
+                  onClick={() => handleMoveLead(lead.id, 'left')}
+                  className="flex items-center gap-2 px-4 py-3 bg-muted hover:bg-muted/80 disabled:opacity-50 disabled:cursor-not-allowed text-foreground font-medium rounded-xl transition-all"
+                >
+                  <ChevronLeft className="w-5 h-5" /> Move Left
+                </button>
+                <div className="w-px h-8 bg-border mx-2" />
+                <div className="px-4 text-center min-w-[200px]">
+                  <p className="text-sm font-bold text-foreground truncate">{lead.name}</p>
+                  <p className="text-xs text-muted-foreground truncate">{lead.company}</p>
+                </div>
+                <div className="w-px h-8 bg-border mx-2" />
+                <button
+                  onClick={() => setEditLead(lead)}
+                  className="w-12 h-12 flex items-center justify-center text-muted-foreground hover:bg-primary/10 hover:text-primary rounded-xl transition-all"
+                  title="Edit Lead"
+                >
+                  <Edit2 className="w-5 h-5" />
+                </button>
+                <button
+                  onClick={() => { setDeletingId(lead.id); setSelectedLeadId(null); }}
+                  className="w-12 h-12 flex items-center justify-center text-muted-foreground hover:bg-red-500/10 hover:text-red-400 rounded-xl transition-all"
+                  title="Delete Lead"
+                >
+                  <Trash2 className="w-5 h-5" />
+                </button>
+                <div className="w-px h-8 bg-border mx-2" />
+                <button
+                  disabled={currentIndex === LEAD_STAGES.length - 1}
+                  onClick={() => handleMoveLead(lead.id, 'right')}
+                  className="flex items-center gap-2 px-4 py-3 bg-primary hover:bg-primary/90 disabled:opacity-50 disabled:cursor-not-allowed text-white font-medium rounded-xl transition-all shadow-md shadow-primary/20"
+                >
+                  Move Right <ChevronRight className="w-5 h-5" />
+                </button>
+              </>
+            );
+          })()}
+        </div>
+      )}
+
+      <ConfirmDialog open={!!deletingId} onClose={() => setDeletingId(null)} onConfirm={() => deletingId && handleDelete(deletingId)} title="Delete Lead" message="Are you sure you want to delete this lead? This action cannot be undone." danger />
     </div>
   );
 }

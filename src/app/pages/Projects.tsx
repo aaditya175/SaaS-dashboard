@@ -121,7 +121,7 @@ function ProjectForm({ project, onSave, onClose }: { project: Project | null; on
 
   const handleSave = () => {
     if (!validate()) return;
-    onSave({ id: form.id ?? `p${Date.now()}`, tasks: [], ...form } as Project);
+    onSave({ ...form, tasks: form.tasks || [] } as Project);
     onClose();
   };
 
@@ -219,12 +219,11 @@ export default function Projects() {
 
   const handleSave = async (project: Project) => {
     try {
-      if (project.id && project.id.length === 24) {
+      if (project.id) {
         const updated = await api.put(`/projects/${project.id}`, project, currentFounder);
         setProjects(prev => prev.map(p => p.id === project.id ? updated : p));
       } else {
-        const { id, ...rest } = project;
-        const created = await api.post('/projects', rest, currentFounder);
+        const created = await api.post('/projects', project, currentFounder);
         setProjects(prev => [...prev, created]);
       }
     } catch (err) {

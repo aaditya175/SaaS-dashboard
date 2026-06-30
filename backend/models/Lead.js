@@ -17,6 +17,7 @@ const leadSchema = new mongoose.Schema({
   updatedBy: { type: String }
 }, {
   timestamps: true,
+  toJSON: { virtuals: true, transform: (doc, ret) => { ret.id = ret._id.toString(); delete ret._id; delete ret.__v; } }
 });
 
 const Lead = mongoose.model('Lead', leadSchema);

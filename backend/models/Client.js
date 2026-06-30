@@ -21,6 +21,7 @@ const clientSchema = new mongoose.Schema({
   updatedBy: { type: String }
 }, {
   timestamps: true,
+  toJSON: { virtuals: true, transform: (doc, ret) => { ret.id = ret._id.toString(); delete ret._id; delete ret.__v; } }
 });
 
 const Client = mongoose.model('Client', clientSchema);
