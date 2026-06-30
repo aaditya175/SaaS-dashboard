@@ -14,6 +14,7 @@ const projectSchema = new mongoose.Schema({
   budget: { type: Number, default: 0 },
   spent: { type: Number, default: 0 },
   tasks: [{ type: Object }],
+  githubRepo: { type: String },
   updatedBy: { type: String }
 }, {
   timestamps: true,

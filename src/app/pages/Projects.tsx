@@ -4,7 +4,7 @@ import { api } from '../../lib/api';
 import Modal from '../components/Modal';
 import { ConfirmDialog } from '../components/Modal';
 import Badge from '../components/Badge';
-import { Plus, Search, LayoutGrid, List, Edit2, Trash2, ChevronRight, Calendar, Users, DollarSign, CheckCircle, Clock, AlertCircle, Check, X } from 'lucide-react';
+import { Plus, Search, LayoutGrid, List, Edit2, Trash2, ChevronRight, Calendar, Users, DollarSign, CheckCircle, Clock, AlertCircle, Check, X, Github, GitCommit } from 'lucide-react';
 
 const STATUS_LABELS: Record<ProjectStatus, string> = {
   planning: 'Planning', in_progress: 'In Progress', review: 'Review', completed: 'Completed', on_hold: 'On Hold'
@@ -14,6 +14,22 @@ const PRIORITY_LABELS: Record<Priority, string> = {
 };
 
 function ProjectCard({ project, onEdit, onDelete }: { project: Project; onEdit: (p: Project) => void; onDelete: (id: string) => void }) {
+  const [commits, setCommits] = useState<any[]>([]);
+  const [loadingCommits, setLoadingCommits] = useState(false);
+
+  useEffect(() => {
+    if (project.githubRepo) {
+      setLoadingCommits(true);
+      fetch(`https://api.github.com/repos/${project.githubRepo}/commits?per_page=3`)
+        .then(res => res.json())
+        .then(data => {
+          if (Array.isArray(data)) setCommits(data);
+        })
+        .catch(console.error)
+        .finally(() => setLoadingCommits(false));
+    }
+  }, [project.githubRepo]);
+
   const todoCount = project.tasks.filter(t => t.status === 'todo').length;
   const doneCount = project.tasks.filter(t => t.status === 'done').length;
   const totalTasks = project.tasks.length;
@@ -69,20 +85,41 @@ function ProjectCard({ project, onEdit, onDelete }: { project: Project; onEdit: 
         </div>
       </div>
 
-      {/* Assignees */}
-      <div className="flex items-center gap-2">
-        <div className="flex -space-x-1.5">
-          {project.assignees.slice(0, 3).map((a, i) => (
-            <div key={i} className="w-6 h-6 rounded-full bg-primary/20 border-2 border-card flex items-center justify-center text-[9px] font-bold text-primary">
-              {a.split(' ').map(n => n[0]).join('')}
+      {/* Assignees & GitHub */}
+      <div className="flex items-center justify-between mt-auto pt-2 border-t border-border/50">
+        <div className="flex items-center gap-2">
+          <div className="flex -space-x-1.5">
+            {project.assignees.slice(0, 3).map((a, i) => (
+              <div key={i} className="w-6 h-6 rounded-full bg-primary/20 border-2 border-card flex items-center justify-center text-[9px] font-bold text-primary">
+                {a.split(' ').map(n => n[0]).join('')}
+              </div>
+            ))}
+            {project.assignees.length > 3 && (
+              <div className="w-6 h-6 rounded-full bg-muted border-2 border-card flex items-center justify-center text-[9px] text-muted-foreground">+{project.assignees.length - 3}</div>
+            )}
+          </div>
+        </div>
+        
+        {project.githubRepo && (
+          <div className="flex items-center gap-1.5 text-xs text-muted-foreground bg-muted/50 px-2 py-1 rounded-md">
+            <Github className="w-3.5 h-3.5" />
+            <span className="font-medium truncate max-w-[100px]">{project.githubRepo.split('/')[1]}</span>
+          </div>
+        )}
+      </div>
+
+      {/* GitHub Commits Preview */}
+      {project.githubRepo && commits.length > 0 && (
+        <div className="mt-2 space-y-2 bg-input-background/50 p-2.5 rounded-lg border border-border/50">
+          <p className="text-[10px] font-bold text-muted-foreground uppercase tracking-wider flex items-center gap-1 mb-1.5"><GitCommit className="w-3 h-3" /> Recent Commits</p>
+          {commits.map(c => (
+            <div key={c.sha} className="flex flex-col gap-0.5">
+              <a href={c.html_url} target="_blank" rel="noreferrer" className="text-xs text-foreground hover:text-primary transition-colors line-clamp-1 font-medium">{c.commit.message.split('\n')[0]}</a>
+              <span className="text-[10px] text-muted-foreground">{c.commit.author.name} • {new Date(c.commit.author.date).toLocaleDateString()}</span>
             </div>
           ))}
-          {project.assignees.length > 3 && (
-            <div className="w-6 h-6 rounded-full bg-muted border-2 border-card flex items-center justify-center text-[9px] text-muted-foreground">+{project.assignees.length - 3}</div>
-          )}
         </div>
-        <span className="text-xs text-muted-foreground">{project.assignees.join(', ')}</span>
-      </div>
+      )}
     </div>
   );
 }
@@ -200,6 +237,10 @@ function ProjectForm({ project, onSave, onClose }: { project: Project | null; on
         <div className="col-span-2">
           <label className="block text-xs font-medium text-foreground mb-1">Description</label>
           <textarea value={form.description ?? ''} onChange={f('description')} rows={3} className="w-full px-3 py-2 rounded-lg bg-input-background border border-border text-sm text-foreground focus:outline-none resize-none" />
+        </div>
+        <div className="col-span-2">
+          <label className="block text-xs font-medium text-foreground mb-1">GitHub Repository (owner/repo)</label>
+          <input value={form.githubRepo ?? ''} onChange={f('githubRepo')} placeholder="e.g. aaditya175/SaaS-dashboard" className="w-full h-9 px-3 rounded-lg bg-input-background border border-border text-sm text-foreground focus:outline-none focus:ring-2 focus:ring-primary/40" />
         </div>
         <div className="col-span-2">
           <label className="block text-xs font-medium text-foreground mb-1">Assignees</label>

@@ -6,7 +6,28 @@ import Client from '../models/Client.js';
 import DailyCheckin from '../models/DailyCheckin.js';
 import KnowledgeBaseArticle from '../models/KnowledgeBaseArticle.js';
 
+import bcrypt from 'bcryptjs';
+
 const router = express.Router();
+
+// --- Auth Routes ---
+router.post('/auth/login', async (req, res) => {
+  try {
+    const { email, password } = req.body;
+    const founder = await Founder.findOne({ email });
+    if (!founder) return res.status(401).json({ message: 'Invalid email or password' });
+
+    const isMatch = await bcrypt.compare(password, founder.password);
+    if (!isMatch) return res.status(401).json({ message: 'Invalid email or password' });
+
+    // Return founder details (excluding password)
+    const founderObj = founder.toObject();
+    delete founderObj.password;
+    res.json(founderObj);
+  } catch (err) {
+    res.status(500).json({ message: err.message });
+  }
+});
 
 // Middleware to extract founderId from query or headers
 const requireFounder = (req, res, next) => {

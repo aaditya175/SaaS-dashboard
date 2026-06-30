@@ -49,6 +49,7 @@ export interface Project {
   budget: number;
   spent: number;
   tasks: Task[];
+  githubRepo?: string;
   updatedBy?: string;
 }
 
@@ -299,7 +300,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
   const [currentPage, setCurrentPage] = useState('dashboard');
   const [isDark, setIsDark] = useState(true);
   const [commandOpen, setCommandOpen] = useState(false);
-  const [currentFounder, setCurrentFounder] = useState('f1');
+  const [currentFounder, setCurrentFounder] = useState(localStorage.getItem('founderId') || '');
 
   useEffect(() => {
     const loadData = async () => {

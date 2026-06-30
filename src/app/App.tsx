@@ -16,6 +16,7 @@ import KnowledgeBase from './pages/KnowledgeBase';
 import Analytics from './pages/Analytics';
 import Gamification from './pages/Gamification';
 import Notifications from './pages/Notifications';
+import Login from './pages/Login';
 
 const PAGE_MAP: Record<string, React.ComponentType> = {
   dashboard: Dashboard,
@@ -33,12 +34,24 @@ const PAGE_MAP: Record<string, React.ComponentType> = {
 };
 
 function AppShell() {
-  const { currentPage, isDark } = useApp();
+  const { currentPage, isDark, currentFounder, setCurrentFounder } = useApp();
 
   useEffect(() => {
     if (isDark) document.documentElement.classList.add('dark');
     else document.documentElement.classList.remove('dark');
   }, [isDark]);
+
+  useEffect(() => {
+    // Check if founder is stored in local storage
+    const storedFounderId = localStorage.getItem('founderId');
+    if (storedFounderId && currentFounder === '') {
+      setCurrentFounder(storedFounderId);
+    }
+  }, [currentFounder, setCurrentFounder]);
+
+  if (!currentFounder) {
+    return <Login onLogin={(founder) => setCurrentFounder(founder.id)} />;
+  }
 
   const Page = PAGE_MAP[currentPage] ?? Dashboard;
 
