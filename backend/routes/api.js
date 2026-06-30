@@ -115,9 +115,10 @@ router.put('/leads/:id', requireFounder, async (req, res) => {
     );
     if (!updated) return res.status(404).json({ message: 'Lead not found' });
 
-    // Auto-create client when lead moves to "Won"
+    // Auto-create client & project when lead moves to "Won"
     if (req.body.stage === 'Won') {
       const existingClient = await Client.findOne({ company: updated.company });
+      let clientName = updated.name;
       if (!existingClient) {
         const newClient = new Client({
           founderId: req.founderId,
@@ -132,7 +133,32 @@ router.put('/leads/:id', requireFounder, async (req, res) => {
           updatedBy: founderName
         });
         await newClient.save();
+        clientName = newClient.company || newClient.name;
+      } else {
+        clientName = existingClient.company || existingClient.name;
       }
+
+      // Auto-create project
+      const deadline = new Date();
+      deadline.setDate(deadline.getDate() + 14); // Default deadline: 14 days
+      
+      const newProject = new Project({
+        founderId: req.founderId,
+        name: `${clientName} Onboarding`,
+        client: clientName,
+        status: 'planning',
+        priority: 'medium',
+        assignees: [founderName],
+        progress: 0,
+        startDate: new Date().toISOString().split('T')[0],
+        deadline: deadline.toISOString().split('T')[0],
+        description: `Auto-generated project from CRM for ${clientName}`,
+        budget: updated.value || 0,
+        spent: 0,
+        tasks: [],
+        updatedBy: founderName
+      });
+      await newProject.save();
     }
 
     res.json(updated);

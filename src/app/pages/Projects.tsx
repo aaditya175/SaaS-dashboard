@@ -4,7 +4,7 @@ import { api } from '../../lib/api';
 import Modal from '../components/Modal';
 import { ConfirmDialog } from '../components/Modal';
 import Badge from '../components/Badge';
-import { Plus, Search, LayoutGrid, List, Edit2, Trash2, ChevronRight, Calendar, Users, DollarSign, CheckCircle, Clock, AlertCircle } from 'lucide-react';
+import { Plus, Search, LayoutGrid, List, Edit2, Trash2, ChevronRight, Calendar, Users, DollarSign, CheckCircle, Clock, AlertCircle, Check, X } from 'lucide-react';
 
 const STATUS_LABELS: Record<ProjectStatus, string> = {
   planning: 'Planning', in_progress: 'In Progress', review: 'Review', completed: 'Completed', on_hold: 'On Hold'
@@ -119,6 +119,30 @@ function ProjectForm({ project, onSave, onClose }: { project: Project | null; on
     });
   };
 
+  const addTask = () => {
+    setForm(p => {
+      const newTasks = [...(p.tasks || []), { id: Date.now().toString(), title: '', status: 'todo' as const, priority: 'medium' as const, assignee: '', dueDate: '', projectId: p.id || '' }];
+      const progress = Math.round((newTasks.filter(t => t.status === 'done').length / newTasks.length) * 100);
+      return { ...p, tasks: newTasks, progress };
+    });
+  };
+
+  const updateTask = (id: string, updates: Partial<Task>) => {
+    setForm(p => {
+      const newTasks = (p.tasks || []).map(t => t.id === id ? { ...t, ...updates } : t);
+      const progress = newTasks.length ? Math.round((newTasks.filter(t => t.status === 'done').length / newTasks.length) * 100) : (p.progress || 0);
+      return { ...p, tasks: newTasks, progress };
+    });
+  };
+
+  const removeTask = (id: string) => {
+    setForm(p => {
+      const newTasks = (p.tasks || []).filter(t => t.id !== id);
+      const progress = newTasks.length ? Math.round((newTasks.filter(t => t.status === 'done').length / newTasks.length) * 100) : (p.progress || 0);
+      return { ...p, tasks: newTasks, progress };
+    });
+  };
+
   const handleSave = () => {
     if (!validate()) return;
     onSave({ ...form, tasks: form.tasks || [] } as Project);
@@ -167,8 +191,11 @@ function ProjectForm({ project, onSave, onClose }: { project: Project | null; on
           {errors.deadline && <p className="text-xs text-red-400 mt-0.5">{errors.deadline}</p>}
         </div>
         <div>
-          <label className="block text-xs font-medium text-foreground mb-1">Progress (%)</label>
-          <input value={form.progress ?? 0} onChange={f('progress')} type="number" min="0" max="100" className="w-full h-9 px-3 rounded-lg bg-input-background border border-border text-sm text-foreground focus:outline-none" />
+          <label className="block text-xs font-medium text-foreground mb-1 flex items-center gap-2">
+            Progress (%)
+            {(form.tasks?.length || 0) > 0 && <span className="text-[10px] text-primary bg-primary/10 px-1.5 py-0.5 rounded-full font-bold">Auto-calculated</span>}
+          </label>
+          <input disabled={(form.tasks?.length || 0) > 0} value={form.progress ?? 0} onChange={f('progress')} type="number" min="0" max="100" className="w-full h-9 px-3 rounded-lg bg-input-background border border-border text-sm text-foreground focus:outline-none disabled:opacity-50" />
         </div>
         <div className="col-span-2">
           <label className="block text-xs font-medium text-foreground mb-1">Description</label>
@@ -185,6 +212,42 @@ function ProjectForm({ project, onSave, onClose }: { project: Project | null; on
                     : 'bg-muted border-border text-muted-foreground hover:text-foreground'
                 }`}>{fo.name}</button>
             ))}
+          </div>
+        </div>
+        
+        {/* Task Management */}
+        <div className="col-span-2 mt-2 pt-4 border-t border-border">
+          <div className="flex items-center justify-between mb-3">
+            <label className="block text-sm font-semibold text-foreground">Project Tasks</label>
+            <button type="button" onClick={addTask} className="text-xs font-medium text-primary hover:text-primary/80 flex items-center gap-1">
+              <Plus className="w-3.5 h-3.5" /> Add Task
+            </button>
+          </div>
+          <div className="space-y-2">
+            {(form.tasks || []).map(t => (
+              <div key={t.id} className={`flex items-center gap-2 p-2 rounded-lg border ${t.status === 'done' ? 'bg-muted/30 border-muted' : 'bg-card border-border'}`}>
+                <button 
+                  type="button" 
+                  onClick={() => updateTask(t.id, { status: t.status === 'done' ? 'todo' : 'done' })}
+                  className={`w-5 h-5 rounded flex items-center justify-center shrink-0 transition-colors ${t.status === 'done' ? 'bg-primary text-white' : 'border border-muted-foreground/30 hover:border-primary text-transparent'}`}
+                >
+                  <Check className="w-3.5 h-3.5" />
+                </button>
+                <input 
+                  type="text" 
+                  value={t.title} 
+                  onChange={(e) => updateTask(t.id, { title: e.target.value })} 
+                  placeholder="Task description..." 
+                  className={`flex-1 bg-transparent border-none focus:outline-none text-sm ${t.status === 'done' ? 'text-muted-foreground line-through' : 'text-foreground'}`}
+                />
+                <button type="button" onClick={() => removeTask(t.id)} className="w-6 h-6 rounded flex items-center justify-center hover:bg-red-500/10 text-muted-foreground hover:text-red-400 shrink-0 transition-colors">
+                  <X className="w-3.5 h-3.5" />
+                </button>
+              </div>
+            ))}
+            {form.tasks?.length === 0 && (
+              <p className="text-xs text-muted-foreground text-center py-4 border border-dashed border-border rounded-lg">No tasks added yet. Add tasks to automatically track progress.</p>
+            )}
           </div>
         </div>
       </div>
