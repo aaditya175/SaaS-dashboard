@@ -22,6 +22,8 @@ router.post('/auth/login', async (req, res) => {
 
     // Return founder details (excluding password)
     const founderObj = founder.toObject();
+    founderObj.id = founderObj._id.toString();
+    delete founderObj._id;
     delete founderObj.password;
     res.json(founderObj);
   } catch (err) {
@@ -71,9 +73,16 @@ router.get('/founders', async (req, res) => {
 
 router.post('/founders', requireSuperAdmin, async (req, res) => {
   try {
-    const newFounder = new Founder(req.body);
+    const data = { ...req.body };
+    if (data.password) {
+      data.password = await bcrypt.hash(data.password, 10);
+    }
+    const newFounder = new Founder(data);
     const saved = await newFounder.save();
-    res.status(201).json(saved);
+    
+    const founderObj = saved.toObject();
+    delete founderObj.password;
+    res.status(201).json(founderObj);
   } catch (err) {
     res.status(400).json({ message: err.message });
   }

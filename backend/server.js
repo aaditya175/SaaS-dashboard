@@ -1,6 +1,7 @@
 import express from 'express';
 import dotenv from 'dotenv';
 import cors from 'cors';
+import mongoose from 'mongoose';
 import connectDB from './config/db.js';
 
 import path from 'path';
@@ -14,6 +15,16 @@ dotenv.config({ path: path.join(__dirname, '../.env') });
 
 // Connect to database
 connectDB();
+
+mongoose.set('toJSON', {
+  virtuals: true,
+  transform: (doc, converted) => {
+    converted.id = converted._id;
+    delete converted._id;
+    delete converted.__v;
+    delete converted.password;
+  }
+});
 
 const app = express();
 

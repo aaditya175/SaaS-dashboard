@@ -117,6 +117,8 @@ export interface Founder {
   role: string;
   initials: string;
   color: string;
+  email?: string;
+  password?: string;
   xp: number;
   level: number;
   streak: number;
@@ -304,6 +306,8 @@ export function AppProvider({ children }: { children: ReactNode }) {
 
   useEffect(() => {
     const loadData = async () => {
+      if (!currentFounder) return;
+      
       try {
         const [apiLeads, apiProjects, apiClients, apiCheckins, apiKb, apiFounders] = await Promise.all([
           api.get('/leads', currentFounder).catch(() => INITIAL_LEADS),

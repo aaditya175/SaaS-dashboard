@@ -224,7 +224,7 @@ export default function Founders() {
   };
 
   const openAdd = () => {
-    setForm({ name: '', role: '', color: '#3b82f6', initials: '' });
+    setForm({ name: '', role: '', color: '#3b82f6', initials: '', email: '', password: '' });
     setShowAdd(true);
   };
 
@@ -278,6 +278,18 @@ export default function Founders() {
               <label className="block text-xs font-medium text-foreground mb-1">Color</label>
               <input type="color" value={form.color || ''} onChange={e => setForm({ ...form, color: e.target.value })} className="h-[38px] w-full rounded-lg cursor-pointer bg-input-background border border-border p-1" />
             </div>
+            {!editFounder && (
+              <>
+                <div>
+                  <label className="block text-xs font-medium text-foreground mb-1">Email</label>
+                  <input type="email" placeholder="Email" value={form.email || ''} onChange={e => setForm({ ...form, email: e.target.value })} className="w-full px-3 py-2 bg-input-background border border-border rounded-lg" />
+                </div>
+                <div>
+                  <label className="block text-xs font-medium text-foreground mb-1">Password</label>
+                  <input type="password" placeholder="Password" value={form.password || ''} onChange={e => setForm({ ...form, password: e.target.value })} className="w-full px-3 py-2 bg-input-background border border-border rounded-lg" />
+                </div>
+              </>
+            )}
           </div>
           <div className="flex justify-end gap-3 pt-2">
             <button onClick={() => { setShowAdd(false); setEditFounder(null); }} className="px-4 py-2 text-sm border border-border rounded-lg hover:bg-muted">Cancel</button>
