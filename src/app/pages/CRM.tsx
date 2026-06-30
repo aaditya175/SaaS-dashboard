@@ -4,7 +4,7 @@ import { api } from '../../lib/api';
 import Modal from '../components/Modal';
 import Badge from '../components/Badge';
 import { ConfirmDialog } from '../components/Modal';
-import { Plus, Search, Filter, MoreHorizontal, Phone, Mail, Tag, Calendar, Trash2, Edit2, ChevronDown } from 'lucide-react';
+import { Plus, Search, Filter, MoreHorizontal, Phone, Mail, Tag, Calendar, Trash2, Edit2, ChevronDown, ChevronLeft, ChevronRight, Building2 } from 'lucide-react';
 
 const STAGE_COLORS: Record<LeadStage, string> = {
   Lead: 'border-slate-500/30 bg-slate-500/5',
