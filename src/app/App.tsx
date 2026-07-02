@@ -2,6 +2,7 @@ import { useEffect } from 'react';
 import { AppProvider, useApp } from './store/appStore';
 import Layout from './layout/Layout';
 import CommandPalette from './components/CommandPalette';
+import AIAssistant from './components/AIAssistant';
 
 // Pages
 import Dashboard from './pages/Dashboard';
@@ -34,7 +35,7 @@ const PAGE_MAP: Record<string, React.ComponentType> = {
 };
 
 function AppShell() {
-  const { currentPage, isDark, currentFounder, setCurrentFounder } = useApp();
+  const { currentPage, isDark, currentFounder, setCurrentFounder, isAiOpen, setIsAiOpen } = useApp();
 
   useEffect(() => {
     if (isDark) document.documentElement.classList.add('dark');
@@ -61,6 +62,7 @@ function AppShell() {
         <Page />
       </Layout>
       <CommandPalette />
+      <AIAssistant isOpen={isAiOpen} onClose={() => setIsAiOpen(false)} />
     </>
   );
 }

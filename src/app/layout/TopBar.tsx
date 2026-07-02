@@ -1,5 +1,5 @@
 import { useApp, FOUNDERS } from '../store/appStore';
-import { Bell, Sun, Moon, Search, Command, Plus } from 'lucide-react';
+import { Bell, Sun, Moon, Search, Command, Plus, Bot } from 'lucide-react';
 
 const PAGE_TITLES: Record<string, { label: string; description: string }> = {
   dashboard: { label: 'Executive Dashboard', description: 'Your agency at a glance' },
@@ -17,7 +17,7 @@ const PAGE_TITLES: Record<string, { label: string; description: string }> = {
 };
 
 export default function TopBar() {
-  const { currentPage, isDark, setIsDark, notifications, setCommandOpen, currentFounder, founders } = useApp();
+  const { currentPage, isDark, setIsDark, notifications, setCommandOpen, currentFounder, founders, setIsAiOpen } = useApp();
   const unread = notifications.filter(n => !n.read).length;
   const pageInfo = PAGE_TITLES[currentPage] ?? { label: 'NexGo OS', description: '' };
   const founder = founders.find(f => f.id === currentFounder) ?? founders[0] ?? { name: 'Super Admin', initials: 'SA', color: '#10b981' };
@@ -50,6 +50,21 @@ export default function TopBar() {
           className="sm:hidden w-8 h-8 rounded-lg bg-muted hover:bg-accent flex items-center justify-center text-muted-foreground hover:text-foreground transition-colors"
         >
           <Search className="w-4 h-4" />
+        </button>
+
+        {/* AI Assistant Toggle */}
+        <button
+          onClick={() => setIsAiOpen(prev => !prev)}
+          className="hidden sm:flex items-center gap-2 h-8 px-3 rounded-lg bg-primary/10 hover:bg-primary/20 text-primary transition-colors border border-primary/20 font-medium text-xs"
+        >
+          <Bot className="w-4 h-4" />
+          <span>Ask AI</span>
+        </button>
+        <button
+          onClick={() => setIsAiOpen(prev => !prev)}
+          className="sm:hidden w-8 h-8 rounded-lg bg-primary/10 hover:bg-primary/20 flex items-center justify-center text-primary transition-colors"
+        >
+          <Bot className="w-4 h-4" />
         </button>
 
         {/* Notifications */}

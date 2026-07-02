@@ -205,6 +205,8 @@ interface AppState {
   activityLog: any[];
   setActivityLog: (v: any[]) => void;
   refreshData: () => Promise<void>;
+  isAiOpen: boolean;
+  setIsAiOpen: (v: boolean) => void;
 }
 
 const AppContext = createContext<AppState | null>(null);
@@ -224,6 +226,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
   const [currentPage, setCurrentPage] = useState('dashboard');
   const [isDark, setIsDark] = useState(true);
   const [commandOpen, setCommandOpen] = useState(false);
+  const [isAiOpen, setIsAiOpen] = useState(false);
   const [currentFounder, setCurrentFounder] = useState(localStorage.getItem('founderId') || '');
   const [activityLog, setActivityLog] = useState<any[]>([]);
 
@@ -264,7 +267,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
   }, [currentFounder]);
 
   return createElement(AppContext.Provider, {
-    value: { leads, setLeads, projects, setProjects, clients, setClients, transactions, setTransactions, meetings, setMeetings, kbDocs, setKbDocs, notifications, setNotifications, checkIns, setCheckIns, founders, setFounders, currentPage, setCurrentPage, isDark, setIsDark, commandOpen, setCommandOpen, currentFounder, setCurrentFounder, activityLog, setActivityLog, refreshData: loadData },
+    value: { leads, setLeads, projects, setProjects, clients, setClients, transactions, setTransactions, meetings, setMeetings, kbDocs, setKbDocs, notifications, setNotifications, checkIns, setCheckIns, founders, setFounders, currentPage, setCurrentPage, isDark, setIsDark, commandOpen, setCommandOpen, currentFounder, setCurrentFounder, activityLog, setActivityLog, refreshData: loadData, isAiOpen, setIsAiOpen },
     children
   });
 }

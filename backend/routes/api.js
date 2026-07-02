@@ -74,16 +74,7 @@ const createNotification = async ({ type, title, message, priority, icon, target
   }
 };
 
-// Smart project template tasks based on project name/industry
-const generateTemplateTasks = (projectName, clientName) => {
-  return [
-    { id: `t${Date.now()}_1`, title: `Discovery & Requirements — ${clientName}`, status: 'todo', assignee: '', priority: 'high', dueDate: '', projectId: '' },
-    { id: `t${Date.now()}_2`, title: 'Design Mockups & Wireframes', status: 'todo', assignee: '', priority: 'high', dueDate: '', projectId: '' },
-    { id: `t${Date.now()}_3`, title: 'Development & Implementation', status: 'todo', assignee: '', priority: 'critical', dueDate: '', projectId: '' },
-    { id: `t${Date.now()}_4`, title: 'Testing & Quality Assurance', status: 'todo', assignee: '', priority: 'medium', dueDate: '', projectId: '' },
-    { id: `t${Date.now()}_5`, title: 'Launch & Client Handoff', status: 'todo', assignee: '', priority: 'high', dueDate: '', projectId: '' }
-  ];
-};
+import { generateSmartTasks, getAiInsights } from '../lib/ai.js';
 
 // Helper for date calculations
 const getDayDifference = (dateStr1, dateStr2) => {
@@ -433,7 +424,7 @@ router.put('/leads/:id', requireFounder, async (req, res) => {
         // 2. Auto-create project with template tasks
         const deadline = new Date();
         deadline.setDate(deadline.getDate() + 30);
-        const templateTasks = generateTemplateTasks(updated.company, updated.company);
+        const templateTasks = await generateSmartTasks(`${updated.company} Project`, updated.company, updated.value || 0);
         
         const newProject = new Project({
           founderId: req.founderId,
@@ -868,6 +859,19 @@ router.put('/notifications/read-all', requireFounder, async (req, res) => {
   try {
     await NotificationModel.updateMany({ read: false }, { read: true });
     res.json({ message: 'All notifications marked as read' });
+  } catch (err) {
+    res.status(500).json({ message: err.message });
+  }
+});
+
+// --- AI Assistant ---
+router.post('/ai/chat', requireFounder, async (req, res) => {
+  try {
+    const { prompt, context } = req.body;
+    if (!prompt) return res.status(400).json({ message: 'Prompt is required' });
+    
+    const reply = await getAiInsights(prompt, context || {});
+    res.json({ reply });
   } catch (err) {
     res.status(500).json({ message: err.message });
   }
