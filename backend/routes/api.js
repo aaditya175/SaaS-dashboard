@@ -48,6 +48,15 @@ const getFounderName = async (founderId) => {
   return founder ? founder.name : 'Unknown';
 };
 
+// Helper for date calculations
+const getDayDifference = (dateStr1, dateStr2) => {
+  const d1 = new Date(dateStr1);
+  const d2 = new Date(dateStr2);
+  const utc1 = Date.UTC(d1.getUTCFullYear(), d1.getUTCMonth(), d1.getUTCDate());
+  const utc2 = Date.UTC(d2.getUTCFullYear(), d2.getUTCMonth(), d2.getUTCDate());
+  return Math.round(Math.abs(utc1 - utc2) / (1000 * 60 * 60 * 24));
+};
+
 // Helper to calculate check-in streak for a founder
 const calculateStreak = async (founderId) => {
   try {
@@ -72,24 +81,17 @@ const calculateStreak = async (founderId) => {
     }
 
     let streak = 0;
-    let currentDate = new Date(mostRecentDate);
 
     for (let i = 0; i < dates.length; i++) {
-      const dateStr = dates[i];
-      const checkDate = new Date(dateStr);
-      
-      // Calculate diff in days
-      const diffTime = Math.abs(currentDate - checkDate);
-      const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
-
       if (i === 0) {
         streak = 1;
-      } else if (diffDays === 1) {
-        streak++;
-        currentDate = checkDate;
-      } else if (diffDays > 1) {
-        // Gap found, streak broken
-        break;
+      } else {
+        const diffDays = getDayDifference(dates[i - 1], dates[i]);
+        if (diffDays === 1) {
+          streak++;
+        } else if (diffDays > 1) {
+          break;
+        }
       }
     }
 

@@ -36,6 +36,7 @@ function ListInput({ items, onChange, placeholder }: { items: string[]; onChange
           value={draft}
           onChange={e => setDraft(e.target.value)}
           onKeyDown={e => e.key === 'Enter' && add()}
+          onBlur={add}
           placeholder={placeholder}
           className="flex-1 h-9 px-3 rounded-lg bg-input-background border border-border text-sm text-foreground focus:outline-none focus:ring-2 focus:ring-primary/40"
         />
@@ -52,7 +53,7 @@ export default function CheckInPage() {
   const founder = founders.find(f => f.id === currentFounder) ?? { name: 'Super Admin', initials: 'SA', color: '#10b981', role: 'Super Admin' };
 
   const today = new Date().toISOString().split('T')[0];
-  const todayCheckIn = checkIns.find(c => c.founder === founder.name && c.date === today);
+  const todayCheckIn = checkIns.find(c => (c.founderId === currentFounder || c.founder === founder.name) && c.date === today);
 
   const [form, setForm] = useState({
     completed: [] as string[],
@@ -90,7 +91,7 @@ export default function CheckInPage() {
     }
   };
 
-  const pastCheckIns = checkIns.filter(c => c.founder === founder.name).sort((a, b) => b.date.localeCompare(a.date));
+  const pastCheckIns = checkIns.filter(c => c.founderId === currentFounder || c.founder === founder.name).sort((a, b) => b.date.localeCompare(a.date));
 
   if (submitted || todayCheckIn) {
     const ci = submitted ? { ...form, founder: founder.name, date: today } : todayCheckIn!;
