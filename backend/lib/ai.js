@@ -20,7 +20,7 @@ export async function generateSmartTasks(projectName, clientName, projectValue) 
   }
 
   try {
-    const model = genAI.getGenerativeModel({ model: 'gemini-pro' });
+    const model = genAI.getGenerativeModel({ model: 'gemini-flash-latest' });
     
     const prompt = `
       You are an expert project manager for a digital agency.
@@ -73,7 +73,7 @@ export async function getAiInsights(promptText, contextData) {
   }
 
   try {
-    const model = genAI.getGenerativeModel({ model: 'gemini-pro' });
+    const model = genAI.getGenerativeModel({ model: 'gemini-flash-latest' });
     
     const systemInstruction = `
       You are 'NexGo AI', a highly intelligent, concise, and professional business assistant for the founder of a digital agency.
