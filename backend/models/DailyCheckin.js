@@ -8,7 +8,9 @@ const dailyCheckinSchema = new mongoose.Schema({
   completed: [{ type: String }],
   workingOn: [{ type: String }],
   blockers: { type: String },
-  notes: { type: String }
+  notes: { type: String },
+  hoursWorked: { type: Number, default: 8 },
+  win: { type: String }
 }, {
   timestamps: true,
 });

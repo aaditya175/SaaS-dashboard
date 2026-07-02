@@ -48,6 +48,58 @@ const getFounderName = async (founderId) => {
   return founder ? founder.name : 'Unknown';
 };
 
+// Helper to calculate check-in streak for a founder
+const calculateStreak = async (founderId) => {
+  try {
+    const checkins = await DailyCheckin.find({ founderId });
+    if (checkins.length === 0) return 0;
+
+    // Get unique check-in dates, sorted descending
+    const dates = [...new Set(checkins.map(c => c.date))].sort((a, b) => b.localeCompare(a));
+    if (dates.length === 0) return 0;
+
+    const todayStr = new Date().toISOString().split('T')[0];
+    
+    // Calculate yesterday's date string
+    const yesterday = new Date();
+    yesterday.setDate(yesterday.getDate() - 1);
+    const yesterdayStr = yesterday.toISOString().split('T')[0];
+
+    // If the most recent check-in is neither today nor yesterday, streak is broken
+    const mostRecentDate = dates[0];
+    if (mostRecentDate !== todayStr && mostRecentDate !== yesterdayStr) {
+      return 0;
+    }
+
+    let streak = 0;
+    let currentDate = new Date(mostRecentDate);
+
+    for (let i = 0; i < dates.length; i++) {
+      const dateStr = dates[i];
+      const checkDate = new Date(dateStr);
+      
+      // Calculate diff in days
+      const diffTime = Math.abs(currentDate - checkDate);
+      const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
+
+      if (i === 0) {
+        streak = 1;
+      } else if (diffDays === 1) {
+        streak++;
+        currentDate = checkDate;
+      } else if (diffDays > 1) {
+        // Gap found, streak broken
+        break;
+      }
+    }
+
+    return streak;
+  } catch (err) {
+    console.error('Error calculating streak:', err);
+    return 0;
+  }
+};
+
 // Middleware for Super Admin only
 const requireSuperAdmin = async (req, res, next) => {
   const founderId = req.headers['x-founder-id'] || req.query.founderId;
@@ -66,7 +118,77 @@ const requireSuperAdmin = async (req, res, next) => {
 router.get('/founders', async (req, res) => {
   try {
     const founders = await Founder.find();
-    res.json(founders);
+    
+    const updatedFounders = await Promise.all(founders.map(async (founder) => {
+      // Apply schema defaults if empty
+      if (!founder.weeklyGoals || founder.weeklyGoals.length === 0) {
+        founder.weeklyGoals = [
+          'Onboard 2 new clients',
+          'Conduct weekly agency sync call',
+          'Review Q3 milestone status'
+        ];
+      }
+      
+      if (!founder.todayTasks || founder.todayTasks.length === 0) {
+        founder.todayTasks = [
+          { text: 'Review today\'s client emails', done: false },
+          { text: 'Sync with product team', done: true }
+        ];
+      }
+
+      if (!founder.radarData || founder.radarData.length === 0) {
+        founder.radarData = [
+          { subject: 'Revenue', A: founder.revenue > 0 ? Math.min(100, Math.round(founder.revenue / 5000)) : 75 },
+          { subject: 'Outreach', A: founder.outreach > 0 ? Math.min(100, Math.round(founder.outreach * 2)) : 65 },
+          { subject: 'Meetings', A: founder.meetings > 0 ? Math.min(100, Math.round(founder.meetings * 4)) : 80 },
+          { subject: 'Tasks', A: 85 },
+          { subject: 'Team', A: 90 },
+          { subject: 'Strategy', A: 85 }
+        ];
+      }
+
+      if (!founder.performanceTrend || founder.performanceTrend.length === 0) {
+        founder.performanceTrend = [
+          { week: 'Wk 1', score: 70 },
+          { week: 'Wk 2', score: 75 },
+          { week: 'Wk 3', score: 72 },
+          { week: 'Wk 4', score: 85 },
+          { week: 'Wk 5', score: 80 },
+          { week: 'Wk 6', score: 90 }
+        ];
+      }
+
+      // Calculate outreach count and revenue won dynamically from Lead collection
+      const wonLeads = await Lead.find({
+        $or: [
+          { founderId: founder._id.toString() },
+          { assignee: { $regex: new RegExp(`^${founder.name}$`, 'i') } }
+        ],
+        stage: 'Won'
+      });
+      const computedRevenue = wonLeads.reduce((sum, lead) => sum + (lead.value || 0), 0);
+
+      const computedOutreach = await Lead.countDocuments({
+        $or: [
+          { founderId: founder._id.toString() },
+          { assignee: { $regex: new RegExp(`^${founder.name}$`, 'i') } }
+        ]
+      });
+
+      founder.revenue = computedRevenue || founder.revenue || 0;
+      founder.outreach = computedOutreach || founder.outreach || 0;
+      founder.streak = await calculateStreak(founder._id.toString());
+
+      // Update productivity score based on tasks done
+      const totalTasks = founder.todayTasks.length;
+      const completedTasks = founder.todayTasks.filter(t => t.done).length;
+      founder.score = totalTasks > 0 ? Math.round((completedTasks / totalTasks) * 100) : 60;
+
+      await founder.save();
+      return founder;
+    }));
+
+    res.json(updatedFounders);
   } catch (err) {
     res.status(500).json({ message: err.message });
   }
@@ -89,10 +211,44 @@ router.post('/founders', requireSuperAdmin, async (req, res) => {
   }
 });
 
-router.put('/founders/:id', requireSuperAdmin, async (req, res) => {
+router.put('/founders/:id', requireFounder, async (req, res) => {
   try {
-    const updated = await Founder.findByIdAndUpdate(req.params.id, req.body, { new: true });
-    if (!updated) return res.status(404).json({ message: 'Founder not found' });
+    // Auth check: must be Super Admin OR updating self
+    if (req.founderId !== req.params.id) {
+      const requester = await Founder.findById(req.founderId);
+      if (!requester || requester.role !== 'Super Admin') {
+        return res.status(403).json({ message: 'Not authorized to update this founder profile' });
+      }
+    }
+
+    const data = { ...req.body };
+    if (data.password) {
+      data.password = await bcrypt.hash(data.password, 10);
+    }
+
+    const oldFounder = await Founder.findById(req.params.id);
+    if (!oldFounder) return res.status(404).json({ message: 'Founder not found' });
+
+    // Compare todayTasks to award XP
+    if (data.todayTasks && Array.isArray(data.todayTasks)) {
+      const oldTasks = oldFounder.todayTasks || [];
+      let newCompletedCount = 0;
+      data.todayTasks.forEach(newTask => {
+        if (newTask.done) {
+          const wasDone = oldTasks.find(ot => ot.text === newTask.text && ot.done);
+          if (!wasDone) {
+            newCompletedCount++;
+          }
+        }
+      });
+
+      if (newCompletedCount > 0) {
+        data.xp = (oldFounder.xp || 0) + (newCompletedCount * 50);
+        data.level = Math.floor(data.xp / 1000) + 1;
+      }
+    }
+
+    const updated = await Founder.findByIdAndUpdate(req.params.id, data, { new: true });
     res.json(updated);
   } catch (err) {
     res.status(400).json({ message: err.message });
@@ -354,8 +510,23 @@ router.get('/checkins', requireFounder, async (req, res) => {
 
 router.post('/checkins', requireFounder, async (req, res) => {
   try {
-    const newCheckin = new DailyCheckin({ ...req.body, founderId: req.founderId });
+    const founderName = await getFounderName(req.founderId);
+    const newCheckin = new DailyCheckin({
+      ...req.body,
+      founderId: req.founderId,
+      founder: founderName
+    });
     const saved = await newCheckin.save();
+
+    // Award XP and increment streak
+    const founderObj = await Founder.findById(req.founderId);
+    if (founderObj) {
+      founderObj.xp = (founderObj.xp || 0) + 100;
+      founderObj.level = Math.floor(founderObj.xp / 1000) + 1;
+      founderObj.streak = await calculateStreak(req.founderId);
+      await founderObj.save();
+    }
+
     res.status(201).json(saved);
   } catch (err) {
     res.status(400).json({ message: err.message });

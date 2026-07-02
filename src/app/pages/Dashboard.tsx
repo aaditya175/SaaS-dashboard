@@ -126,7 +126,7 @@ const CustomTooltip = ({ active, payload, label }: any) => {
 };
 
 export default function Dashboard() {
-  const { leads, projects, clients, transactions } = useApp();
+  const { leads, projects, clients, transactions, currentFounder, founders } = useApp();
   const won = leads.filter(l => l.stage === 'Won').length;
   const totalLeads = leads.length;
   const winRate = totalLeads > 0 ? Math.round((won / totalLeads) * 100) : 0;
@@ -157,7 +157,7 @@ export default function Dashboard() {
 
   const hour = new Date().getHours();
   const greeting = hour < 12 ? 'Good morning' : hour < 17 ? 'Good afternoon' : 'Good evening';
-  const founder = FOUNDERS[0];
+  const founder = founders.find(f => f.id === currentFounder) || founders[0] || FOUNDERS[0];
 
   const quotes = [
     "Success is not final, failure is not fatal — it is the courage to continue that counts.",

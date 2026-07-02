@@ -17,10 +17,10 @@ const PAGE_TITLES: Record<string, { label: string; description: string }> = {
 };
 
 export default function TopBar() {
-  const { currentPage, isDark, setIsDark, notifications, setCommandOpen, currentFounder } = useApp();
+  const { currentPage, isDark, setIsDark, notifications, setCommandOpen, currentFounder, founders } = useApp();
   const unread = notifications.filter(n => !n.read).length;
   const pageInfo = PAGE_TITLES[currentPage] ?? { label: 'NexGo OS', description: '' };
-  const founder = FOUNDERS.find(f => f.id === currentFounder) ?? FOUNDERS[0];
+  const founder = founders.find(f => f.id === currentFounder) ?? founders[0] ?? { name: 'Super Admin', initials: 'SA', color: '#10b981' };
 
   return (
     <header className="h-14 flex items-center justify-between px-6 border-b border-border bg-card/50 backdrop-blur-sm flex-shrink-0 gap-4">

@@ -127,6 +127,10 @@ export interface Founder {
   outreach: number;
   meetings: number;
   score: number;
+  weeklyGoals?: string[];
+  todayTasks?: { text: string; done: boolean }[];
+  radarData?: { subject: string; A: number }[];
+  performanceTrend?: { week: string; score: number }[];
   tasks: Task[];
 }
 
@@ -214,9 +218,9 @@ export const INITIAL_TRANSACTIONS: Transaction[] = [
 ];
 
 export const INITIAL_MEETINGS: Meeting[] = [
-  { id: 'm1', title: 'TechNova Q3 Strategy Review', participants: ['Aryan Shah', 'Priya Mehta', 'Vikram Nair'], date: '2025-06-30', time: '10:00', duration: 60, type: 'client', notes: 'Quarterly review of brand project progress and upcoming website launch timeline.', actionItems: [{ text: 'Send updated timeline doc', assignee: 'Aryan Shah', done: false }, { text: 'Prepare website demo', assignee: 'Rahul Patel', done: true }], location: 'Google Meet' },
-  { id: 'm2', title: 'Weekly Founders Sync', participants: ['Aryan Shah', 'Priya Mehta', 'Rahul Patel', 'Sneha Kapoor', 'Dev Sharma'], date: '2025-06-28', time: '09:00', duration: 45, type: 'internal', notes: 'Weekly check-in on KPIs, blockers, and priorities for the week.', actionItems: [{ text: 'Review Q2 revenue report', assignee: 'Dev Sharma', done: false }, { text: 'Finalize HealthFirst onboarding plan', assignee: 'Priya Mehta', done: false }], location: 'Office' },
-  { id: 'm3', title: 'Finwise Contract Negotiation', participants: ['Dev Sharma', 'Karan Bose'], date: '2025-07-02', time: '14:00', duration: 90, type: 'sales', notes: '', actionItems: [], location: 'Zoom' },
+  { id: 'm1', title: 'TechNova Q3 Strategy Review', participants: ['piyush khandiat', 'Aaditya Chauhan', 'Vikram Nair'], date: '2025-06-30', time: '10:00', duration: 60, type: 'client', notes: 'Quarterly review of brand project progress and upcoming website launch timeline.', actionItems: [{ text: 'Send updated timeline doc', assignee: 'piyush khandiat', done: false }, { text: 'Prepare website demo', assignee: 'varad madhav', done: true }], location: 'Google Meet' },
+  { id: 'm2', title: 'Weekly Founders Sync', participants: ['piyush khandiat', 'Aaditya Chauhan', 'varad madhav', 'yash gupta', 'bhaumik patil'], date: '2025-06-28', time: '09:00', duration: 45, type: 'internal', notes: 'Weekly check-in on KPIs, blockers, and priorities for the week.', actionItems: [{ text: 'Review Q2 revenue report', assignee: 'bhaumik patil', done: false }, { text: 'Finalize HealthFirst onboarding plan', assignee: 'Aaditya Chauhan', done: false }], location: 'Office' },
+  { id: 'm3', title: 'Finwise Contract Negotiation', participants: ['bhaumik patil', 'Karan Bose'], date: '2025-07-02', time: '14:00', duration: 90, type: 'sales', notes: '', actionItems: [], location: 'Zoom' },
 ];
 
 export const INITIAL_KB: KBDocument[] = [

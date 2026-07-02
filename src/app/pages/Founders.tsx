@@ -1,51 +1,104 @@
 import { useState, useMemo } from 'react';
 import { api } from '../../lib/api';
-import { useApp, FOUNDERS, Founder, formatCurrency } from '../store/appStore';
+import { useApp, Founder, formatCurrency } from '../store/appStore';
 import { RadarChart, Radar, PolarGrid, PolarAngleAxis, ResponsiveContainer, AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip } from 'recharts';
 import { Target, Zap, TrendingUp, Award, Calendar, CheckSquare, Coffee, Users, Edit2, Trash2 } from 'lucide-react';
 import Modal, { ConfirmDialog } from '../components/Modal';
 
-const PERSONAL_DATA: Record<string, { weeklyGoals: string[]; todayTasks: { text: string; done: boolean }[]; radarData: any[] }> = {
-  f1: {
-    weeklyGoals: ['Close Finwise Capital deal', 'Onboard HealthFirst team', 'Hit ₹5L revenue milestone', 'Conduct 5 discovery calls'],
-    todayTasks: [{ text: 'Call Karan Bose re: pricing', done: false }, { text: 'Review TechNova website draft', done: true }, { text: 'Prep weekly founders sync deck', done: false }, { text: 'Send 10 LinkedIn outreaches', done: true }],
-    radarData: [{ subject: 'Revenue', A: 92 }, { subject: 'Outreach', A: 78 }, { subject: 'Meetings', A: 85 }, { subject: 'Tasks', A: 90 }, { subject: 'Team', A: 88 }, { subject: 'Strategy', A: 95 }],
-  },
-  f2: {
-    weeklyGoals: ['Complete HealthFirst onboarding checklist', 'Collect NPS from 3 clients', 'Setup weekly client call cadence', 'Resolve EduPath invoice'],
-    todayTasks: [{ text: 'Send onboarding email to HealthFirst', done: true }, { text: 'Follow up EduPath invoice', done: false }, { text: 'Update client satisfaction scores', done: false }, { text: 'Review project status with Rahul', done: true }],
-    radarData: [{ subject: 'Revenue', A: 75 }, { subject: 'Outreach', A: 60 }, { subject: 'Meetings', A: 92 }, { subject: 'Tasks', A: 85 }, { subject: 'Team', A: 95 }, { subject: 'Strategy', A: 80 }],
-  },
-  f3: {
-    weeklyGoals: ['Deploy Finwise Lead Gen System', 'Fix TechNova website bugs', 'Setup analytics dashboard', 'Code review for 3 PRs'],
-    todayTasks: [{ text: 'Deploy staging environment', done: true }, { text: 'Fix mobile responsive issues', done: true }, { text: 'CRM API integration testing', done: false }, { text: 'Team standup @ 9AM', done: true }],
-    radarData: [{ subject: 'Revenue', A: 65 }, { subject: 'Outreach', A: 40 }, { subject: 'Meetings', A: 70 }, { subject: 'Tasks', A: 95 }, { subject: 'Team', A: 85 }, { subject: 'Strategy', A: 75 }],
-  },
-  f4: {
-    weeklyGoals: ['Launch Q3 content calendar', 'Get 500 new followers across platforms', 'Write 2 case studies', 'Plan client testimonial campaign'],
-    todayTasks: [{ text: 'Schedule 5 social posts', done: false }, { text: 'Write EduPath case study draft', done: false }, { text: 'Review ad creatives for HealthFirst', done: true }, { text: 'Monthly analytics report', done: false }],
-    radarData: [{ subject: 'Revenue', A: 78 }, { subject: 'Outreach', A: 95 }, { subject: 'Meetings', A: 75 }, { subject: 'Tasks', A: 72 }, { subject: 'Team', A: 80 }, { subject: 'Strategy', A: 88 }],
-  },
-  f5: {
-    weeklyGoals: ['Close Q2 books by June 30', 'Send 3 partnership proposals', 'Review and approve all Q2 invoices', 'Quarterly financial report'],
-    todayTasks: [{ text: 'Approve EduPath overdue invoice follow-up', done: false }, { text: 'Partnership call with SoftSell Agency', done: true }, { text: 'Q2 expense reconciliation', done: false }, { text: 'GST filing preparation', done: false }],
-    radarData: [{ subject: 'Revenue', A: 88 }, { subject: 'Outreach', A: 55 }, { subject: 'Meetings', A: 82 }, { subject: 'Tasks', A: 78 }, { subject: 'Team', A: 70 }, { subject: 'Strategy', A: 85 }],
-  },
-};
+const DEFAULT_RADAR_DATA = [
+  { subject: 'Revenue', A: 75 },
+  { subject: 'Outreach', A: 65 },
+  { subject: 'Meetings', A: 80 },
+  { subject: 'Tasks', A: 85 },
+  { subject: 'Team', A: 90 },
+  { subject: 'Strategy', A: 85 },
+];
 
-const PERF_DATA = [
-  { week: 'Wk 1', score: 72 },
-  { week: 'Wk 2', score: 78 },
-  { week: 'Wk 3', score: 75 },
+const DEFAULT_PERF_DATA = [
+  { week: 'Wk 1', score: 70 },
+  { week: 'Wk 2', score: 75 },
+  { week: 'Wk 3', score: 72 },
   { week: 'Wk 4', score: 85 },
-  { week: 'Wk 5', score: 82 },
+  { week: 'Wk 5', score: 80 },
   { week: 'Wk 6', score: 90 },
 ];
 
-function FounderTab({ founder, data, isSuperAdmin, onEdit, onDelete }: { founder: Founder; data: typeof PERSONAL_DATA['f1']; isSuperAdmin: boolean; onEdit: () => void; onDelete: () => void }) {
+function FounderTab({
+  founder,
+  isSuperAdmin,
+  currentLoggedInId,
+  onEdit,
+  onDelete,
+  onUpdate
+}: {
+  founder: Founder;
+  isSuperAdmin: boolean;
+  currentLoggedInId: string;
+  onEdit: () => void;
+  onDelete: () => void;
+  onUpdate: (fields: Partial<Founder>) => void;
+}) {
+  const { leads, meetings } = useApp();
   const [newTask, setNewTask] = useState('');
-  const [tasks, setTasks] = useState(data.todayTasks);
+  const [newGoal, setNewGoal] = useState('');
+
+  const computedRevenue = useMemo(() => {
+    return leads
+      .filter(l => l.stage === 'Won' && l.assignee?.toLowerCase() === founder.name?.toLowerCase())
+      .reduce((sum, l) => sum + (l.value || 0), 0);
+  }, [leads, founder.name]);
+
+  const computedOutreach = useMemo(() => {
+    return leads.filter(l => l.assignee?.toLowerCase() === founder.name?.toLowerCase()).length;
+  }, [leads, founder.name]);
+
+  const computedMeetings = useMemo(() => {
+    const firstName = founder.name.split(' ')[0].toLowerCase();
+    return meetings.filter(m => 
+      m.participants.some(p => p.toLowerCase() === founder.name.toLowerCase() || p.toLowerCase().includes(firstName))
+    ).length;
+  }, [meetings, founder.name]);
+
+  const tasks = founder.todayTasks || [];
+  const weeklyGoals = founder.weeklyGoals || [];
   const completedTasks = tasks.filter(t => t.done).length;
+
+  const handleToggleTask = (idx: number) => {
+    const updated = tasks.map((t, i) => i === idx ? { ...t, done: !t.done } : t);
+    onUpdate({ todayTasks: updated });
+  };
+
+  const handleAddTask = () => {
+    if (newTask.trim()) {
+      const updated = [...tasks, { text: newTask.trim(), done: false }];
+      onUpdate({ todayTasks: updated });
+      setNewTask('');
+    }
+  };
+
+  const handleDeleteTask = (idx: number) => {
+    const updated = tasks.filter((_, i) => i !== idx);
+    onUpdate({ todayTasks: updated });
+  };
+
+  const handleAddGoal = () => {
+    if (newGoal.trim()) {
+      const updated = [...weeklyGoals, newGoal.trim()];
+      onUpdate({ weeklyGoals: updated });
+      setNewGoal('');
+    }
+  };
+
+  const handleDeleteGoal = (idx: number) => {
+    const updated = weeklyGoals.filter((_, i) => i !== idx);
+    onUpdate({ weeklyGoals: updated });
+  };
+
+  const radarData = founder.radarData?.length ? founder.radarData : DEFAULT_RADAR_DATA;
+  const performanceTrend = founder.performanceTrend?.length ? founder.performanceTrend : DEFAULT_PERF_DATA;
+
+  const canEdit = isSuperAdmin || (currentLoggedInId === founder.id);
+  const canDelete = isSuperAdmin && (currentLoggedInId !== founder.id);
 
   return (
     <div className="space-y-5">
@@ -57,24 +110,26 @@ function FounderTab({ founder, data, isSuperAdmin, onEdit, onDelete }: { founder
         <div className="flex-1">
           <div className="flex items-center gap-3">
             <h2 className="text-xl font-bold text-foreground font-display">{founder.name}</h2>
-            {isSuperAdmin && (
+            {canEdit && (
               <div className="flex gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
                 <button onClick={onEdit} className="p-1 hover:bg-muted rounded text-muted-foreground"><Edit2 className="w-4 h-4"/></button>
-                <button onClick={onDelete} className="p-1 hover:bg-red-500/20 text-red-500 rounded"><Trash2 className="w-4 h-4"/></button>
+                {canDelete && (
+                  <button onClick={onDelete} className="p-1 hover:bg-red-500/20 text-red-500 rounded"><Trash2 className="w-4 h-4"/></button>
+                )}
               </div>
             )}
           </div>
           <p className="text-sm text-muted-foreground">{founder.role}</p>
           <div className="flex flex-wrap items-center gap-3 mt-2">
-            <span className="text-sm font-semibold" style={{ color: founder.color }}>Level {founder.level}</span>
-            <span className="text-xs text-muted-foreground">{founder.xp.toLocaleString()} XP</span>
-            <span className="text-xs text-muted-foreground">{founder.streak} day streak 🔥</span>
-            <div className="flex gap-1">{founder.badges.map((b, i) => <span key={i} className="text-base">{b}</span>)}</div>
+            <span className="text-sm font-semibold" style={{ color: founder.color }}>Level {founder.level || 1}</span>
+            <span className="text-xs text-muted-foreground">{(founder.xp || 0).toLocaleString()} XP</span>
+            <span className="text-xs text-muted-foreground">{founder.streak || 0} day streak 🔥</span>
+            <div className="flex gap-1">{(founder.badges || []).map((b, i) => <span key={i} className="text-base">{b}</span>)}</div>
           </div>
         </div>
         {/* Productivity score */}
         <div className="text-center">
-          <p className="text-4xl font-bold font-display" style={{ color: founder.color }}>{founder.score}</p>
+          <p className="text-4xl font-bold font-display" style={{ color: founder.color }}>{founder.score || 0}</p>
           <p className="text-xs text-muted-foreground">Productivity Score</p>
           <p className="text-xs font-semibold text-emerald-400 mt-0.5">+5 this week</p>
         </div>
@@ -83,10 +138,10 @@ function FounderTab({ founder, data, isSuperAdmin, onEdit, onDelete }: { founder
       {/* KPI cards */}
       <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
         {[
-          { label: 'Revenue Generated', value: formatCurrency(founder.revenue), icon: TrendingUp, color: 'text-emerald-400', bg: 'bg-emerald-500/10' },
-          { label: 'Outreach Done', value: String(founder.outreach), icon: Users, color: 'text-blue-400', bg: 'bg-blue-500/10' },
-          { label: 'Meetings This Month', value: String(founder.meetings), icon: Calendar, color: 'text-violet-400', bg: 'bg-violet-500/10' },
-          { label: 'XP Points', value: founder.xp.toLocaleString(), icon: Award, color: 'text-amber-400', bg: 'bg-amber-500/10' },
+          { label: 'Revenue Generated', value: formatCurrency(computedRevenue || founder.revenue || 0), icon: TrendingUp, color: 'text-emerald-400', bg: 'bg-emerald-500/10' },
+          { label: 'Outreach Done', value: String(computedOutreach || founder.outreach || 0), icon: Users, color: 'text-blue-400', bg: 'bg-blue-500/10' },
+          { label: 'Meetings This Month', value: String(computedMeetings || founder.meetings || 0), icon: Calendar, color: 'text-violet-400', bg: 'bg-violet-500/10' },
+          { label: 'XP Points', value: (founder.xp || 0).toLocaleString(), icon: Award, color: 'text-amber-400', bg: 'bg-amber-500/10' },
         ].map(k => (
           <div key={k.label} className="rounded-xl border border-border bg-card p-4 flex items-center gap-3">
             <div className={`w-9 h-9 rounded-xl ${k.bg} flex items-center justify-center flex-shrink-0`}><k.icon className={`w-4.5 h-4.5 ${k.color}`} /></div>
@@ -107,20 +162,28 @@ function FounderTab({ founder, data, isSuperAdmin, onEdit, onDelete }: { founder
           </div>
           <div className="space-y-2">
             {tasks.map((t, i) => (
-              <div key={i} className="flex items-center gap-3 p-2 rounded-lg hover:bg-muted/50 transition-colors">
+              <div key={i} className="group/task flex items-center justify-between p-2 rounded-lg hover:bg-muted/50 transition-colors">
+                <div className="flex items-center gap-3">
+                  <button
+                    onClick={() => handleToggleTask(i)}
+                    className={`w-5 h-5 rounded-md border-2 flex items-center justify-center transition-colors flex-shrink-0 ${t.done ? 'border-primary bg-primary' : 'border-border hover:border-primary'}`}
+                  >
+                    {t.done && <CheckSquare className="w-3 h-3 text-white" />}
+                  </button>
+                  <span className={`text-sm ${t.done ? 'line-through text-muted-foreground' : 'text-foreground'}`}>{t.text}</span>
+                </div>
                 <button
-                  onClick={() => setTasks(prev => prev.map((x, j) => j === i ? { ...x, done: !x.done } : x))}
-                  className={`w-5 h-5 rounded-md border-2 flex items-center justify-center transition-colors flex-shrink-0 ${t.done ? 'border-primary bg-primary' : 'border-border hover:border-primary'}`}
+                  onClick={() => handleDeleteTask(i)}
+                  className="opacity-0 group-hover/task:opacity-100 p-1 hover:bg-red-500/20 text-red-500 rounded"
                 >
-                  {t.done && <CheckSquare className="w-3 h-3 text-white" />}
+                  <Trash2 className="w-3.5 h-3.5" />
                 </button>
-                <span className={`text-sm flex-1 ${t.done ? 'line-through text-muted-foreground' : 'text-foreground'}`}>{t.text}</span>
               </div>
             ))}
           </div>
           <div className="flex gap-2">
-            <input value={newTask} onChange={e => setNewTask(e.target.value)} onKeyDown={e => { if (e.key === 'Enter' && newTask.trim()) { setTasks(p => [...p, { text: newTask.trim(), done: false }]); setNewTask(''); }}} placeholder="Add a task..." className="flex-1 h-9 px-3 rounded-lg bg-input-background border border-border text-sm text-foreground focus:outline-none focus:ring-2 focus:ring-primary/40" />
-            <button onClick={() => { if (newTask.trim()) { setTasks(p => [...p, { text: newTask.trim(), done: false }]); setNewTask(''); }}} className="h-9 px-3 bg-primary hover:bg-primary/90 text-white rounded-lg text-sm font-medium">Add</button>
+            <input value={newTask} onChange={e => setNewTask(e.target.value)} onKeyDown={e => { if (e.key === 'Enter') handleAddTask(); }} placeholder="Add a task..." className="flex-1 h-9 px-3 rounded-lg bg-input-background border border-border text-sm text-foreground focus:outline-none focus:ring-2 focus:ring-primary/40" />
+            <button onClick={handleAddTask} className="h-9 px-3 bg-primary hover:bg-primary/90 text-white rounded-lg text-sm font-medium">Add</button>
           </div>
         </div>
 
@@ -128,7 +191,7 @@ function FounderTab({ founder, data, isSuperAdmin, onEdit, onDelete }: { founder
         <div className="rounded-xl border border-border bg-card p-5">
           <p className="text-sm font-semibold text-foreground mb-3">Performance Radar</p>
           <ResponsiveContainer width="100%" height={220}>
-            <RadarChart data={data.radarData}>
+            <RadarChart data={radarData}>
               <PolarGrid stroke="rgba(255,255,255,0.08)" />
               <PolarAngleAxis dataKey="subject" tick={{ fontSize: 10, fill: 'var(--muted-foreground)' }} />
               <Radar dataKey="A" stroke={founder.color} fill={founder.color} fillOpacity={0.2} strokeWidth={2} />
@@ -139,15 +202,36 @@ function FounderTab({ founder, data, isSuperAdmin, onEdit, onDelete }: { founder
 
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
         {/* Weekly goals */}
-        <div className="rounded-xl border border-border bg-card p-5">
-          <div className="flex items-center gap-2 mb-3"><Target className="w-4 h-4 text-primary" /><p className="text-sm font-semibold text-foreground">Weekly Goals</p></div>
+        <div className="rounded-xl border border-border bg-card p-5 space-y-4">
+          <div className="flex items-center gap-2 mb-1">
+            <Target className="w-4 h-4 text-primary" />
+            <p className="text-sm font-semibold text-foreground">Weekly Goals</p>
+          </div>
           <div className="space-y-2">
-            {data.weeklyGoals.map((g, i) => (
-              <div key={i} className="flex items-start gap-2 p-2 rounded-lg bg-muted/30">
-                <span className="w-5 h-5 rounded-full bg-primary/20 text-primary text-[10px] font-bold flex items-center justify-center flex-shrink-0 mt-0.5">{i + 1}</span>
-                <span className="text-sm text-foreground">{g}</span>
+            {weeklyGoals.map((g, i) => (
+              <div key={i} className="group/goal flex items-center justify-between p-2 rounded-lg bg-muted/30 hover:bg-muted/50 transition-colors">
+                <div className="flex items-start gap-2">
+                  <span className="w-5 h-5 rounded-full bg-primary/20 text-primary text-[10px] font-bold flex items-center justify-center flex-shrink-0 mt-0.5">{i + 1}</span>
+                  <span className="text-sm text-foreground leading-relaxed">{g}</span>
+                </div>
+                <button
+                  onClick={() => handleDeleteGoal(i)}
+                  className="opacity-0 group-hover/goal:opacity-100 p-1 hover:bg-red-500/20 text-red-500 rounded"
+                >
+                  <Trash2 className="w-3.5 h-3.5" />
+                </button>
               </div>
             ))}
+          </div>
+          <div className="flex gap-2">
+            <input
+              value={newGoal}
+              onChange={e => setNewGoal(e.target.value)}
+              onKeyDown={e => { if (e.key === 'Enter') handleAddGoal(); }}
+              placeholder="Add a weekly goal..."
+              className="flex-1 h-9 px-3 rounded-lg bg-input-background border border-border text-sm text-foreground focus:outline-none focus:ring-2 focus:ring-primary/40"
+            />
+            <button onClick={handleAddGoal} className="h-9 px-3 bg-primary hover:bg-primary/90 text-white rounded-lg text-sm font-medium">Add</button>
           </div>
         </div>
 
@@ -155,7 +239,7 @@ function FounderTab({ founder, data, isSuperAdmin, onEdit, onDelete }: { founder
         <div className="rounded-xl border border-border bg-card p-5">
           <p className="text-sm font-semibold text-foreground mb-3">6-Week Performance</p>
           <ResponsiveContainer width="100%" height={180}>
-            <AreaChart data={PERF_DATA}>
+            <AreaChart data={performanceTrend}>
               <defs>
                 <linearGradient id={`grad-${founder.id}`} x1="0" y1="0" x2="0" y2="1">
                   <stop offset="5%" stopColor={founder.color} stopOpacity={0.3} />
@@ -180,19 +264,24 @@ export default function Founders() {
   const [showAdd, setShowAdd] = useState(false);
   const [editFounder, setEditFounder] = useState<Founder | null>(null);
   const [deleteFounderId, setDeleteFounderId] = useState<string | null>(null);
-  const [form, setForm] = useState<Partial<Founder>>({ name: '', role: '', color: '#3b82f6', initials: '' });
+  const [form, setForm] = useState<Partial<Founder>>({ name: '', role: '', color: '#3b82f6', initials: '', email: '', password: '' });
 
   const activeFounder = founders.find(f => f.id === currentFounder);
   const isSuperAdmin = activeFounder?.role === 'Super Admin';
 
   const handleSave = async () => {
     try {
+      const dataToSave = { ...form };
+      if (editFounder && !dataToSave.password) {
+        delete dataToSave.password;
+      }
+      
       if (editFounder) {
-        const updated = await api.put(`/founders/${editFounder.id}`, form, currentFounder);
+        const updated = await api.put(`/founders/${editFounder.id}`, dataToSave, currentFounder);
         setFounders(founders.map(f => f.id === editFounder.id ? updated : f));
         setEditFounder(null);
       } else {
-        const created = await api.post('/founders', form, currentFounder);
+        const created = await api.post('/founders', dataToSave, currentFounder);
         setFounders([...founders, created]);
         setShowAdd(false);
       }
@@ -229,8 +318,21 @@ export default function Founders() {
   };
 
   const openEdit = (f: Founder) => {
-    setForm({ name: f.name, role: f.role, color: f.color, initials: f.initials });
+    setForm({ name: f.name, role: f.role, color: f.color, initials: f.initials, email: f.email || '', password: '' });
     setEditFounder(f);
+  };
+
+  const handleUpdateFounder = async (founderId: string, updatedFields: Partial<Founder>) => {
+    try {
+      // Optimistic update
+      setFounders(prev => prev.map(f => f.id === founderId ? { ...f, ...updatedFields } : f));
+      
+      const updated = await api.put(`/founders/${founderId}`, updatedFields, currentFounder);
+      setFounders(prev => prev.map(f => f.id === founderId ? updated : f));
+    } catch (err) {
+      console.error(err);
+      alert('Error updating tasks/goals. Please try again.');
+    }
   };
 
   return (
@@ -268,7 +370,7 @@ export default function Founders() {
             </div>
             <div>
               <label className="block text-xs font-medium text-foreground mb-1">Role</label>
-              <input placeholder="Role" value={form.role || ''} onChange={e => setForm({ ...form, role: e.target.value })} className="w-full px-3 py-2 bg-input-background border border-border rounded-lg" />
+              <input placeholder="Role" disabled={!isSuperAdmin} value={form.role || ''} onChange={e => setForm({ ...form, role: e.target.value })} className="w-full px-3 py-2 bg-input-background border border-border rounded-lg disabled:opacity-50" />
             </div>
             <div>
               <label className="block text-xs font-medium text-foreground mb-1">Initials (e.g. JD)</label>
@@ -278,18 +380,14 @@ export default function Founders() {
               <label className="block text-xs font-medium text-foreground mb-1">Color</label>
               <input type="color" value={form.color || ''} onChange={e => setForm({ ...form, color: e.target.value })} className="h-[38px] w-full rounded-lg cursor-pointer bg-input-background border border-border p-1" />
             </div>
-            {!editFounder && (
-              <>
-                <div>
-                  <label className="block text-xs font-medium text-foreground mb-1">Email</label>
-                  <input type="email" placeholder="Email" value={form.email || ''} onChange={e => setForm({ ...form, email: e.target.value })} className="w-full px-3 py-2 bg-input-background border border-border rounded-lg" />
-                </div>
-                <div>
-                  <label className="block text-xs font-medium text-foreground mb-1">Password</label>
-                  <input type="password" placeholder="Password" value={form.password || ''} onChange={e => setForm({ ...form, password: e.target.value })} className="w-full px-3 py-2 bg-input-background border border-border rounded-lg" />
-                </div>
-              </>
-            )}
+            <div>
+              <label className="block text-xs font-medium text-foreground mb-1">Email</label>
+              <input type="email" placeholder="Email" value={form.email || ''} onChange={e => setForm({ ...form, email: e.target.value })} className="w-full px-3 py-2 bg-input-background border border-border rounded-lg" />
+            </div>
+            <div>
+              <label className="block text-xs font-medium text-foreground mb-1">Password {editFounder && '(Leave blank to keep)'}</label>
+              <input type="password" placeholder={editFounder ? "New Password" : "Password"} value={form.password || ''} onChange={e => setForm({ ...form, password: e.target.value })} className="w-full px-3 py-2 bg-input-background border border-border rounded-lg" />
+            </div>
           </div>
           <div className="flex justify-end gap-3 pt-2">
             <button onClick={() => { setShowAdd(false); setEditFounder(null); }} className="px-4 py-2 text-sm border border-border rounded-lg hover:bg-muted">Cancel</button>
@@ -309,7 +407,15 @@ export default function Founders() {
 
       {/* Selected founder content */}
       {founders.map(f => currentFounder === f.id && (
-        <FounderTab key={f.id} founder={f} data={PERSONAL_DATA[f.id] || PERSONAL_DATA['f1']} isSuperAdmin={isSuperAdmin} onEdit={() => openEdit(f)} onDelete={() => setDeleteFounderId(f.id)} />
+        <FounderTab
+          key={f.id}
+          founder={f}
+          isSuperAdmin={isSuperAdmin}
+          currentLoggedInId={currentFounder}
+          onEdit={() => openEdit(f)}
+          onDelete={() => setDeleteFounderId(f.id)}
+          onUpdate={fields => handleUpdateFounder(f.id, fields)}
+        />
       ))}
     </div>
   );

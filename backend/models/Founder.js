@@ -15,7 +15,20 @@ const founderSchema = new mongoose.Schema({
   revenue: { type: Number, default: 0 },
   outreach: { type: Number, default: 0 },
   meetings: { type: Number, default: 0 },
-  score: { type: Number, default: 0 }
+  score: { type: Number, default: 0 },
+  weeklyGoals: [{ type: String }],
+  todayTasks: [{
+    text: { type: String },
+    done: { type: Boolean, default: false }
+  }],
+  radarData: [{
+    subject: { type: String },
+    A: { type: Number }
+  }],
+  performanceTrend: [{
+    week: { type: String },
+    score: { type: Number }
+  }]
 }, {
   timestamps: true,
 });
