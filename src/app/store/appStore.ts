@@ -159,11 +159,19 @@ export interface Notification {
 // ─── Initial Data ────────────────────────────────────────────────────────────────
 
 export const FOUNDERS: Founder[] = [
-  { month: 'Mar', leads: 21, won: 5 },
-  { month: 'Apr', leads: 31, won: 9 },
-  { month: 'May', leads: 28, won: 7 },
-  { month: 'Jun', leads: 35, won: 11 },
+  { id: 'f1', name: 'Super Admin', role: 'Super Admin', initials: 'SA', color: '#7c3aed', xp: 0, level: 1, streak: 0, badges: ['🏆'], revenue: 0, outreach: 0, meetings: 0, score: 0, tasks: [] }
 ];
+
+export const INITIAL_LEADS: Lead[] = [];
+export const INITIAL_PROJECTS: Project[] = [];
+export const INITIAL_CLIENTS: Client[] = [];
+export const INITIAL_TRANSACTIONS: Transaction[] = [];
+export const INITIAL_MEETINGS: Meeting[] = [];
+export const INITIAL_KB: KBDocument[] = [];
+export const INITIAL_NOTIFICATIONS: Notification[] = [];
+
+export const REVENUE_CHART_DATA: any[] = [];
+export const LEAD_CHART_DATA: any[] = [];
 
 // ─── Context ──────────────────────────────────────────────────────────────────
 
