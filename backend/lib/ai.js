@@ -81,6 +81,9 @@ export async function getAiInsights(promptText, contextData) {
       Here is the current state context (JSON):
       ${JSON.stringify(contextData)}
 
+      CRITICAL RULE: You are a read-only conversational assistant. You DO NOT have the ability to click buttons, add tasks, mark tasks as done, edit projects, or perform any actions on the dashboard.
+      If a user asks you to perform an action (e.g., "add a task", "mark this as done"), politely explain that you cannot make changes to the dashboard and that they must do it manually themselves. Do NOT pretend to perform actions.
+
       Answer the user's prompt directly, clearly, and proactively based ONLY on the provided context. 
       Crucially, you have visibility into all active projects and the tasks assigned to ALL founders. Cross-reference this information to ensure you never suggest a task that someone else is already doing.
       Format your response with Markdown (bullet points, bold text). Keep it under 150 words unless asked for a long report.
