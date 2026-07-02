@@ -112,7 +112,7 @@ const CustomTooltip = ({ active, payload, label }: any) => {
 const PIE_COLORS = ['#7c3aed', '#06b6d4', '#10b981', '#f59e0b', '#ef4444'];
 
 export default function Finance() {
-  const { transactions, setTransactions, currentFounder } = useApp();
+  const { transactions, setTransactions, currentFounder, refreshData } = useApp();
   const [search, setSearch] = useState('');
   const [filterType, setFilterType] = useState<'all' | 'revenue' | 'expense'>('all');
   const [filterStatus, setFilterStatus] = useState<'all' | 'paid' | 'pending' | 'overdue'>('all');
@@ -146,6 +146,8 @@ export default function Finance() {
         const created = await api.post('/transactions', tx, currentFounder);
         setTransactions(prev => [...prev, created]);
       }
+      await refreshData();
+      setEditTx(undefined);
     } catch (err) {
       console.error(err);
       alert('Error saving transaction.');

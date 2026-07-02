@@ -399,7 +399,10 @@ router.put('/leads/:id', requireFounder, async (req, res) => {
       // --- Stage → Won: THE BIG ONE ---
       if (newStage === 'Won') {
         // 1. Auto-create client
-        const existingClient = await Client.findOne({ company: updated.company });
+        let existingClient = null;
+        if (updated.company) {
+          existingClient = await Client.findOne({ company: updated.company });
+        }
         let clientDoc;
         if (!existingClient) {
           const renewalDate = new Date();

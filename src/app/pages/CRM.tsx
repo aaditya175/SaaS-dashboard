@@ -151,7 +151,7 @@ function LeadForm({ lead, onSave, onClose }: { lead: Partial<Lead> | null; onSav
 }
 
 export default function CRM() {
-  const { leads, setLeads, currentFounder, founders } = useApp();
+  const { leads, setLeads, currentFounder, founders, refreshData } = useApp();
   const [search, setSearch] = useState('');
   const [filterStage, setFilterStage] = useState<LeadStage | 'all'>('all');
   const [editLead, setEditLead] = useState<Lead | null | undefined>(undefined);
@@ -206,6 +206,11 @@ export default function CRM() {
 
     try {
       await api.put(`/leads/${id}`, { stage: newStage }, currentFounder);
+      
+      // If moved to a stage that triggers automations, refresh all data to fetch new clients/projects/invoices
+      if (['Meeting', 'Proposal', 'Won', 'Lost'].includes(newStage)) {
+        await refreshData();
+      }
     } catch (err) {
       // Revert if error
       setLeads(prev => prev.map(l => l.id === id ? { ...l, stage: lead.stage } : l));

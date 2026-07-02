@@ -301,7 +301,7 @@ function ProjectForm({ project, onSave, onClose }: { project: Project | null; on
 }
 
 export default function Projects() {
-  const { projects, setProjects, clients, currentFounder, founders } = useApp();
+  const { projects, setProjects, clients, currentFounder, founders, refreshData } = useApp();
   const [search, setSearch] = useState('');
   const [filterStatus, setFilterStatus] = useState<ProjectStatus | 'all'>('all');
   const [view, setView] = useState<'grid' | 'list'>('grid');
@@ -326,6 +326,7 @@ export default function Projects() {
       if (project.id) {
         const updated = await api.put(`/projects/${project.id}`, project, currentFounder);
         setProjects(prev => prev.map(p => p.id === project.id ? updated : p));
+        await refreshData(); // Refresh to catch any automations (e.g. project completed -> XP awarded, invoice sent)
       } else {
         const created = await api.post('/projects', project, currentFounder);
         setProjects(prev => [...prev, created]);

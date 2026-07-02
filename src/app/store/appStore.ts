@@ -204,6 +204,7 @@ interface AppState {
   setCurrentFounder: (id: string) => void;
   activityLog: any[];
   setActivityLog: (v: any[]) => void;
+  refreshData: () => Promise<void>;
 }
 
 const AppContext = createContext<AppState | null>(null);
@@ -226,43 +227,44 @@ export function AppProvider({ children }: { children: ReactNode }) {
   const [currentFounder, setCurrentFounder] = useState(localStorage.getItem('founderId') || '');
   const [activityLog, setActivityLog] = useState<any[]>([]);
 
-  useEffect(() => {
-    const loadData = async () => {
-      if (!currentFounder) return;
+  const loadData = async () => {
+    if (!currentFounder) return;
+    
+    try {
+      const [apiLeads, apiProjects, apiClients, apiCheckins, apiKb, apiFounders, apiTransactions, apiMeetings, apiNotifications, apiActivity] = await Promise.all([
+        api.get('/leads', currentFounder).catch(() => INITIAL_LEADS),
+        api.get('/projects', currentFounder).catch(() => INITIAL_PROJECTS),
+        api.get('/clients', currentFounder).catch(() => INITIAL_CLIENTS),
+        api.get('/checkins', currentFounder).catch(() => []),
+        api.get('/kb').catch(() => INITIAL_KB),
+        api.get('/founders').catch(() => FOUNDERS),
+        api.get('/transactions', currentFounder).catch(() => INITIAL_TRANSACTIONS),
+        api.get('/meetings', currentFounder).catch(() => INITIAL_MEETINGS),
+        api.get('/notifications', currentFounder).catch(() => INITIAL_NOTIFICATIONS),
+        api.get('/activity?limit=20', currentFounder).catch(() => [])
+      ]);
       
-      try {
-        const [apiLeads, apiProjects, apiClients, apiCheckins, apiKb, apiFounders, apiTransactions, apiMeetings, apiNotifications, apiActivity] = await Promise.all([
-          api.get('/leads', currentFounder).catch(() => INITIAL_LEADS),
-          api.get('/projects', currentFounder).catch(() => INITIAL_PROJECTS),
-          api.get('/clients', currentFounder).catch(() => INITIAL_CLIENTS),
-          api.get('/checkins', currentFounder).catch(() => []),
-          api.get('/kb').catch(() => INITIAL_KB),
-          api.get('/founders').catch(() => FOUNDERS),
-          api.get('/transactions', currentFounder).catch(() => INITIAL_TRANSACTIONS),
-          api.get('/meetings', currentFounder).catch(() => INITIAL_MEETINGS),
-          api.get('/notifications', currentFounder).catch(() => INITIAL_NOTIFICATIONS),
-          api.get('/activity?limit=20', currentFounder).catch(() => [])
-        ]);
-        
-        if (Array.isArray(apiLeads)) setLeads(apiLeads);
-        if (Array.isArray(apiProjects)) setProjects(apiProjects);
-        if (Array.isArray(apiClients)) setClients(apiClients);
-        if (Array.isArray(apiCheckins)) setCheckIns(apiCheckins);
-        if (Array.isArray(apiKb)) setKbDocs(apiKb);
-        if (Array.isArray(apiFounders) && apiFounders.length > 0) setFounders(apiFounders);
-        if (Array.isArray(apiTransactions)) setTransactions(apiTransactions);
-        if (Array.isArray(apiMeetings)) setMeetings(apiMeetings);
-        if (Array.isArray(apiNotifications)) setNotifications(apiNotifications.map((n: any) => ({ ...n, createdAt: n.createdAt || new Date().toISOString() })));
-        if (Array.isArray(apiActivity)) setActivityLog(apiActivity);
-      } catch (err) {
-        console.error('Error loading data', err);
-      }
-    };
+      if (Array.isArray(apiLeads)) setLeads(apiLeads);
+      if (Array.isArray(apiProjects)) setProjects(apiProjects);
+      if (Array.isArray(apiClients)) setClients(apiClients);
+      if (Array.isArray(apiCheckins)) setCheckIns(apiCheckins);
+      if (Array.isArray(apiKb)) setKbDocs(apiKb);
+      if (Array.isArray(apiFounders) && apiFounders.length > 0) setFounders(apiFounders);
+      if (Array.isArray(apiTransactions)) setTransactions(apiTransactions);
+      if (Array.isArray(apiMeetings)) setMeetings(apiMeetings);
+      if (Array.isArray(apiNotifications)) setNotifications(apiNotifications.map((n: any) => ({ ...n, createdAt: n.createdAt || new Date().toISOString() })));
+      if (Array.isArray(apiActivity)) setActivityLog(apiActivity);
+    } catch (err) {
+      console.error('Error loading data', err);
+    }
+  };
+
+  useEffect(() => {
     loadData();
   }, [currentFounder]);
 
   return createElement(AppContext.Provider, {
-    value: { leads, setLeads, projects, setProjects, clients, setClients, transactions, setTransactions, meetings, setMeetings, kbDocs, setKbDocs, notifications, setNotifications, checkIns, setCheckIns, founders, setFounders, currentPage, setCurrentPage, isDark, setIsDark, commandOpen, setCommandOpen, currentFounder, setCurrentFounder, activityLog, setActivityLog },
+    value: { leads, setLeads, projects, setProjects, clients, setClients, transactions, setTransactions, meetings, setMeetings, kbDocs, setKbDocs, notifications, setNotifications, checkIns, setCheckIns, founders, setFounders, currentPage, setCurrentPage, isDark, setIsDark, commandOpen, setCommandOpen, currentFounder, setCurrentFounder, activityLog, setActivityLog, refreshData: loadData },
     children
   });
 }
