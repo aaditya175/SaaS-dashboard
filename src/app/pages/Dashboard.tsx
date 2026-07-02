@@ -36,15 +36,28 @@ function HealthScore() {
 }
 
 function ActivityFeed() {
-  const { leads, projects } = useApp();
-  const items = [
-    { icon: '🏆', text: 'Amit Verma deal closed — ₹2.4L', time: '2h ago', type: 'success' },
-    { icon: '📋', text: 'Finwise Lead Gen System in review', time: '4h ago', type: 'info' },
-    { icon: '📞', text: 'Ananya Singh meeting scheduled', time: '5h ago', type: 'neutral' },
-    { icon: '💰', text: 'Invoice INV-2025-043 paid — ₹80K', time: '6h ago', type: 'success' },
-    { icon: '⚠️', text: 'EduPath invoice ₹45K overdue', time: '1d ago', type: 'warning' },
-    { icon: '✅', text: 'Daily check-ins submitted by 4 founders', time: '1d ago', type: 'neutral' },
-  ];
+  const { activityLog } = useApp();
+  
+  const getTimeAgo = (dateStr: string) => {
+    const diff = Date.now() - new Date(dateStr).getTime();
+    const mins = Math.floor(diff / 60000);
+    if (mins < 60) return `${mins}m ago`;
+    const hours = Math.floor(mins / 60);
+    if (hours < 24) return `${hours}h ago`;
+    const days = Math.floor(hours / 24);
+    return `${days}d ago`;
+  };
+  
+  const items = activityLog.length > 0 
+    ? activityLog.slice(0, 8).map(a => ({
+        icon: a.icon || '📋',
+        text: `${a.founderName}: ${a.details}`,
+        time: getTimeAgo(a.createdAt)
+      }))
+    : [
+        { icon: '📋', text: 'No activity yet. Start by adding leads in the CRM!', time: 'now' }
+      ];
+  
   return (
     <div className="rounded-xl border border-border bg-card p-5 flex flex-col gap-3">
       <div className="flex items-center justify-between">

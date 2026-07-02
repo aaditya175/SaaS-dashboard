@@ -1,5 +1,6 @@
 import { useState } from 'react';
 import { useApp, Meeting } from '../store/appStore';
+import { api } from '../../lib/api';
 import Modal from '../components/Modal';
 import { ConfirmDialog } from '../components/Modal';
 import { Plus, Video, Users, Clock, MapPin, Check, Edit2, Trash2, ExternalLink, ChevronDown } from 'lucide-react';
@@ -170,7 +171,7 @@ function MeetingCard({ meeting, onEdit, onDelete }: { meeting: Meeting; onEdit: 
 }
 
 export default function Meetings() {
-  const { meetings, setMeetings } = useApp();
+  const { meetings, setMeetings, founders, currentFounder } = useApp();
   const [editMeeting, setEditMeeting] = useState<Meeting | null | undefined>(undefined);
   const [deletingId, setDeletingId] = useState<string | null>(null);
   const [filterType, setFilterType] = useState<'all' | Meeting['type']>('all');
@@ -181,12 +182,29 @@ export default function Meetings() {
   const past = meetings.filter(m => new Date(`${m.date}T${m.time}`) < now && (filterType === 'all' || m.type === filterType))
     .sort((a, b) => `${b.date}T${b.time}`.localeCompare(`${a.date}T${a.time}`));
 
-  const handleSave = (m: Meeting) => {
-    setMeetings(prev => {
-      const idx = prev.findIndex(x => x.id === m.id);
-      if (idx >= 0) { const n = [...prev]; n[idx] = m; return n; }
-      return [...prev, m];
-    });
+  const handleSave = async (m: Meeting) => {
+    try {
+      if (editMeeting) {
+        const updated = await api.put(`/meetings/${m.id}`, m, currentFounder);
+        setMeetings(prev => prev.map(x => x.id === m.id ? updated : x));
+      } else {
+        const created = await api.post('/meetings', m, currentFounder);
+        setMeetings(prev => [...prev, created]);
+      }
+    } catch (err) {
+      console.error(err);
+    }
+  };
+
+  const handleDelete = async () => {
+    if (!deletingId) return;
+    try {
+      await api.delete(`/meetings/${deletingId}`, currentFounder);
+      setMeetings(prev => prev.filter(m => m.id !== deletingId));
+      setDeletingId(null);
+    } catch (err) {
+      console.error(err);
+    }
   };
 
   return (
@@ -254,7 +272,7 @@ export default function Meetings() {
           <MeetingForm meeting={editMeeting} onSave={handleSave} onClose={() => setEditMeeting(undefined)} />
         </Modal>
       )}
-      <ConfirmDialog open={!!deletingId} onClose={() => setDeletingId(null)} onConfirm={() => deletingId && setMeetings(m => m.filter(x => x.id !== deletingId))} title="Cancel Meeting" message="Remove this meeting from your calendar?" danger />
+      <ConfirmDialog open={!!deletingId} onClose={() => setDeletingId(null)} onConfirm={handleDelete} title="Cancel Meeting" message="Remove this meeting from your calendar?" danger />
     </div>
   );
 }

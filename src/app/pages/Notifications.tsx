@@ -1,4 +1,5 @@
 import { useApp, Notification } from '../store/appStore';
+import { api } from '../../lib/api';
 import { Bell, CheckCheck, Trash2, Clock, DollarSign, Target, Video, ClipboardCheck, CheckSquare, AlertTriangle } from 'lucide-react';
 
 const TYPE_CONFIG: Record<Notification['type'], { icon: any; color: string; bg: string; label: string }> = {
@@ -27,10 +28,25 @@ function formatTime(iso: string) {
 }
 
 export default function Notifications() {
-  const { notifications, setNotifications } = useApp();
+  const { notifications, setNotifications, currentFounder } = useApp();
 
-  const markRead = (id: string) => setNotifications(prev => prev.map(n => n.id === id ? { ...n, read: true } : n));
-  const markAllRead = () => setNotifications(prev => prev.map(n => ({ ...n, read: true })));
+  const markRead = async (id: string) => {
+    try {
+      await api.put(`/notifications/${id}/read`, {}, currentFounder);
+      setNotifications(prev => prev.map(n => n.id === id ? { ...n, read: true } : n));
+    } catch (err) {
+      console.error(err);
+    }
+  };
+
+  const markAllRead = async () => {
+    try {
+      await api.put('/notifications/read-all', {}, currentFounder);
+      setNotifications(prev => prev.map(n => ({ ...n, read: true })));
+    } catch (err) {
+      console.error(err);
+    }
+  };
   const deleteNotif = (id: string) => setNotifications(prev => prev.filter(n => n.id !== id));
   const clearAll = () => setNotifications([]);
 

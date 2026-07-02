@@ -6,6 +6,9 @@ import Client from '../models/Client.js';
 import Transaction from '../models/Transaction.js';
 import DailyCheckin from '../models/DailyCheckin.js';
 import KnowledgeBaseArticle from '../models/KnowledgeBaseArticle.js';
+import Meeting from '../models/Meeting.js';
+import ActivityLog from '../models/ActivityLog.js';
+import NotificationModel from '../models/Notification.js';
 
 import bcrypt from 'bcryptjs';
 
@@ -46,6 +49,40 @@ const requireFounder = (req, res, next) => {
 const getFounderName = async (founderId) => {
   const founder = await Founder.findById(founderId);
   return founder ? founder.name : 'Unknown';
+};
+
+// Helper to log activity
+const logActivity = async ({ founderId, founderName, action, entityType, entityId, entityName, details, metadata, icon }) => {
+  try {
+    await new ActivityLog({ founderId, founderName, action, entityType, entityId, entityName, details, metadata, icon }).save();
+  } catch (err) {
+    console.error('Activity log error:', err.message);
+  }
+};
+
+// Helper to create notification
+const createNotification = async ({ type, title, message, priority, icon, targetFounderId, sourceFounderId, sourceFounderName, entityType, entityId, scheduledFor }) => {
+  try {
+    await new NotificationModel({
+      type, title, message, priority: priority || 'medium', icon: icon || '🔔',
+      targetFounderId, sourceFounderId, sourceFounderName,
+      entityType, entityId,
+      scheduledFor, fired: !scheduledFor
+    }).save();
+  } catch (err) {
+    console.error('Notification error:', err.message);
+  }
+};
+
+// Smart project template tasks based on project name/industry
+const generateTemplateTasks = (projectName, clientName) => {
+  return [
+    { id: `t${Date.now()}_1`, title: `Discovery & Requirements — ${clientName}`, status: 'todo', assignee: '', priority: 'high', dueDate: '', projectId: '' },
+    { id: `t${Date.now()}_2`, title: 'Design Mockups & Wireframes', status: 'todo', assignee: '', priority: 'high', dueDate: '', projectId: '' },
+    { id: `t${Date.now()}_3`, title: 'Development & Implementation', status: 'todo', assignee: '', priority: 'critical', dueDate: '', projectId: '' },
+    { id: `t${Date.now()}_4`, title: 'Testing & Quality Assurance', status: 'todo', assignee: '', priority: 'medium', dueDate: '', projectId: '' },
+    { id: `t${Date.now()}_5`, title: 'Launch & Client Handoff', status: 'todo', assignee: '', priority: 'high', dueDate: '', projectId: '' }
+  ];
 };
 
 // Helper for date calculations
@@ -295,61 +332,184 @@ router.post('/leads', requireFounder, async (req, res) => {
 router.put('/leads/:id', requireFounder, async (req, res) => {
   try {
     const founderName = await getFounderName(req.founderId);
+    const oldLead = await Lead.findById(req.params.id);
+    if (!oldLead) return res.status(404).json({ message: 'Lead not found' });
+    
+    const oldStage = oldLead.stage;
+    const newStage = req.body.stage;
     const updateData = { ...req.body, updatedBy: founderName };
     
-    const updated = await Lead.findByIdAndUpdate(
-      req.params.id,
-      updateData,
-      { new: true }
-    );
-    if (!updated) return res.status(404).json({ message: 'Lead not found' });
-
-    // Auto-create client & project when lead moves to "Won"
-    if (req.body.stage === 'Won') {
-      const existingClient = await Client.findOne({ company: updated.company });
-      let clientName = updated.name;
-      if (!existingClient) {
-        const newClient = new Client({
+    // Auto-update lastContact when stage changes
+    if (newStage && newStage !== oldStage) {
+      updateData.lastContact = new Date().toISOString().split('T')[0];
+    }
+    
+    const updated = await Lead.findByIdAndUpdate(req.params.id, updateData, { new: true });
+    
+    // === STAGE TRANSITION AUTOMATIONS ===
+    if (newStage && newStage !== oldStage) {
+      
+      // --- Stage → Meeting: Auto-create editable meeting ---
+      if (newStage === 'Meeting') {
+        const tomorrow = new Date();
+        tomorrow.setDate(tomorrow.getDate() + 1);
+        // Skip weekends
+        if (tomorrow.getDay() === 0) tomorrow.setDate(tomorrow.getDate() + 1);
+        if (tomorrow.getDay() === 6) tomorrow.setDate(tomorrow.getDate() + 2);
+        
+        const newMeeting = new Meeting({
+          title: `${updated.company} — Discovery Call`,
+          participants: [founderName, updated.name],
+          date: tomorrow.toISOString().split('T')[0],
+          time: '10:00',
+          duration: 60,
+          type: 'sales',
+          notes: `Auto-created from CRM. Lead: ${updated.name} (${updated.company})\nDeal Value: ₹${(updated.value || 0).toLocaleString('en-IN')}`,
+          actionItems: [],
+          location: 'Google Meet',
           founderId: req.founderId,
-          name: updated.name,
-          company: updated.company,
-          email: updated.email,
-          phone: updated.phone,
-          status: 'active',
-          totalRevenue: updated.value || 0,
-          contractValue: updated.value || 0,
-          joinedDate: new Date().toISOString().split('T')[0],
           updatedBy: founderName
         });
-        await newClient.save();
-        clientName = newClient.company || newClient.name;
-      } else {
-        clientName = existingClient.company || existingClient.name;
+        await newMeeting.save();
+        
+        await logActivity({ founderId: req.founderId, founderName, action: 'meeting_created', entityType: 'meeting', entityId: newMeeting._id, entityName: newMeeting.title, details: `Scheduled meeting with ${updated.name} from ${updated.company}`, icon: '📅' });
+        await createNotification({ type: 'meeting_created', title: 'Meeting Scheduled', message: `Discovery call with ${updated.company} scheduled for ${tomorrow.toISOString().split('T')[0]}`, priority: 'medium', icon: '📅', sourceFounderId: req.founderId, sourceFounderName: founderName, entityType: 'meeting', entityId: newMeeting._id });
       }
-
-      // Auto-create project
-      const deadline = new Date();
-      deadline.setDate(deadline.getDate() + 14); // Default deadline: 14 days
       
-      const newProject = new Project({
-        founderId: req.founderId,
-        name: `${clientName} Onboarding`,
-        client: clientName,
-        status: 'planning',
-        priority: 'medium',
-        assignees: [founderName],
-        progress: 0,
-        startDate: new Date().toISOString().split('T')[0],
-        deadline: deadline.toISOString().split('T')[0],
-        description: `Auto-generated project from CRM for ${clientName}`,
-        budget: updated.value || 0,
-        spent: 0,
-        tasks: [],
-        updatedBy: founderName
-      });
-      await newProject.save();
+      // --- Stage → Proposal: Auto-create editable draft invoice ---
+      if (newStage === 'Proposal') {
+        const newTx = new Transaction({
+          type: 'revenue',
+          amount: updated.value || 0,
+          category: 'Project',
+          description: `${updated.company} — Proposal Invoice (Draft)`,
+          date: new Date().toISOString().split('T')[0],
+          status: 'pending',
+          client: updated.company,
+          invoiceNumber: `INV-${new Date().getFullYear()}-${String(Date.now()).slice(-4)}`,
+          founderId: req.founderId,
+          updatedBy: founderName
+        });
+        await newTx.save();
+        
+        await logActivity({ founderId: req.founderId, founderName, action: 'invoice_created', entityType: 'transaction', entityId: newTx._id, entityName: `Invoice for ${updated.company}`, details: `Draft invoice ₹${(updated.value || 0).toLocaleString('en-IN')} created for ${updated.company}`, icon: '💰' });
+        await createNotification({ type: 'invoice_created', title: 'Draft Invoice Created', message: `₹${(updated.value || 0).toLocaleString('en-IN')} invoice created for ${updated.company} proposal`, priority: 'low', icon: '💰', sourceFounderId: req.founderId, sourceFounderName: founderName, entityType: 'transaction', entityId: newTx._id });
+      }
+      
+      // --- Stage → Won: THE BIG ONE ---
+      if (newStage === 'Won') {
+        // 1. Auto-create client
+        const existingClient = await Client.findOne({ company: updated.company });
+        let clientDoc;
+        if (!existingClient) {
+          const renewalDate = new Date();
+          renewalDate.setFullYear(renewalDate.getFullYear() + 1);
+          clientDoc = new Client({
+            founderId: req.founderId,
+            name: updated.name,
+            company: updated.company,
+            email: updated.email,
+            phone: updated.phone,
+            status: 'active',
+            totalRevenue: 0,
+            contractValue: updated.value || 0,
+            joinedDate: new Date().toISOString().split('T')[0],
+            renewalDate: renewalDate.toISOString().split('T')[0],
+            tags: updated.tags || [],
+            industry: '',
+            updatedBy: founderName
+          });
+          await clientDoc.save();
+          
+          await logActivity({ founderId: req.founderId, founderName, action: 'client_created', entityType: 'client', entityId: clientDoc._id, entityName: updated.company, details: `New client ${updated.company} created from won deal`, icon: '👤' });
+          await createNotification({ type: 'client_created', title: 'New Client Added', message: `${updated.company} is now an active client!`, priority: 'medium', icon: '👤', sourceFounderId: req.founderId, sourceFounderName: founderName, entityType: 'client', entityId: clientDoc._id });
+        } else {
+          clientDoc = existingClient;
+        }
+        
+        // 2. Auto-create project with template tasks
+        const deadline = new Date();
+        deadline.setDate(deadline.getDate() + 30);
+        const templateTasks = generateTemplateTasks(updated.company, updated.company);
+        
+        const newProject = new Project({
+          founderId: req.founderId,
+          name: `${updated.company} Project`,
+          client: updated.company,
+          status: 'planning',
+          priority: updated.value >= 200000 ? 'high' : 'medium',
+          assignees: [founderName],
+          progress: 0,
+          startDate: new Date().toISOString().split('T')[0],
+          deadline: deadline.toISOString().split('T')[0],
+          description: `Auto-generated from CRM won deal. Contact: ${updated.name} (${updated.email})`,
+          budget: updated.value || 0,
+          spent: 0,
+          tasks: templateTasks,
+          updatedBy: founderName
+        });
+        await newProject.save();
+        
+        // Link project to client
+        if (clientDoc) {
+          await Client.findByIdAndUpdate(clientDoc._id, { $push: { projectIds: newProject._id } });
+        }
+        
+        await logActivity({ founderId: req.founderId, founderName, action: 'project_created', entityType: 'project', entityId: newProject._id, entityName: newProject.name, details: `Project created for ${updated.company} with 5 template tasks`, icon: '📋' });
+        
+        // 3. Auto-create revenue invoice (if not already created at Proposal stage)
+        const existingInvoice = await Transaction.findOne({ client: updated.company, type: 'revenue', description: { $regex: /Proposal Invoice/ } });
+        if (!existingInvoice) {
+          const newTx = new Transaction({
+            type: 'revenue',
+            amount: updated.value || 0,
+            category: 'Project',
+            description: `${updated.company} — Project Payment`,
+            date: new Date().toISOString().split('T')[0],
+            status: 'pending',
+            client: updated.company,
+            invoiceNumber: `INV-${new Date().getFullYear()}-${String(Date.now()).slice(-4)}`,
+            founderId: req.founderId,
+            updatedBy: founderName
+          });
+          await newTx.save();
+          
+          await logActivity({ founderId: req.founderId, founderName, action: 'invoice_created', entityType: 'transaction', entityId: newTx._id, entityName: `Invoice for ${updated.company}`, details: `₹${(updated.value || 0).toLocaleString('en-IN')} invoice auto-created`, icon: '💵' });
+        }
+        
+        // 4. Award XP to the closer
+        const founder = await Founder.findById(req.founderId);
+        if (founder) {
+          founder.xp = (founder.xp || 0) + 200;
+          founder.level = Math.floor(founder.xp / 1000) + 1;
+          await founder.save();
+          
+          await createNotification({ type: 'xp_earned', title: 'XP Earned!', message: `+200 XP for closing ${updated.company} deal!`, priority: 'low', icon: '⚡', targetFounderId: req.founderId, sourceFounderId: req.founderId, sourceFounderName: founderName });
+        }
+        
+        // 5. Deal won notification (visible to everyone)
+        await logActivity({ founderId: req.founderId, founderName, action: 'deal_won', entityType: 'lead', entityId: updated._id, entityName: updated.company, details: `${founderName} closed ${updated.company} for ₹${(updated.value || 0).toLocaleString('en-IN')}`, metadata: { value: updated.value }, icon: '🏆' });
+        await createNotification({ type: 'deal_won', title: '🎉 Deal Won!', message: `${founderName} closed ${updated.company} — ₹${(updated.value || 0).toLocaleString('en-IN')}!`, priority: 'high', icon: '🏆', sourceFounderId: req.founderId, sourceFounderName: founderName, entityType: 'lead', entityId: updated._id });
+      }
+      
+      // --- Stage → Lost ---
+      if (newStage === 'Lost') {
+        await logActivity({ founderId: req.founderId, founderName, action: 'deal_lost', entityType: 'lead', entityId: updated._id, entityName: updated.company, details: `Deal lost: ${updated.company}. Reason: ${updated.lostReason || 'Not specified'}`, icon: '❌' });
+        
+        await createNotification({ type: 'deal_lost', title: 'Deal Lost', message: `${updated.company} deal lost. ${updated.lostReason ? 'Reason: ' + updated.lostReason : 'Consider logging the reason.'}`, priority: 'medium', icon: '❌', sourceFounderId: req.founderId, sourceFounderName: founderName, entityType: 'lead', entityId: updated._id });
+        
+        // Schedule re-engage reminder for 30 days
+        const reEngageDate = new Date();
+        reEngageDate.setDate(reEngageDate.getDate() + 30);
+        await createNotification({ type: 're_engage', title: 'Re-engage Lead', message: `It\'s been 30 days since ${updated.company} was lost. Worth a follow-up?`, priority: 'medium', icon: '🔄', targetFounderId: req.founderId, sourceFounderId: req.founderId, sourceFounderName: founderName, entityType: 'lead', entityId: updated._id, scheduledFor: reEngageDate });
+      }
+      
+      // Log any other stage change
+      if (!['Won', 'Lost', 'Meeting', 'Proposal'].includes(newStage)) {
+        await logActivity({ founderId: req.founderId, founderName, action: 'lead_stage_changed', entityType: 'lead', entityId: updated._id, entityName: updated.company, details: `${updated.company} moved from ${oldStage} → ${newStage}`, icon: '📊' });
+      }
     }
-
+    
     res.json(updated);
   } catch (err) {
     res.status(400).json({ message: err.message });
@@ -389,12 +549,52 @@ router.post('/projects', requireFounder, async (req, res) => {
 router.put('/projects/:id', requireFounder, async (req, res) => {
   try {
     const founderName = await getFounderName(req.founderId);
-    const updated = await Project.findByIdAndUpdate(
-      req.params.id,
-      { ...req.body, updatedBy: founderName },
-      { new: true }
-    );
-    if (!updated) return res.status(404).json({ message: 'Project not found' });
+    const oldProject = await Project.findById(req.params.id);
+    if (!oldProject) return res.status(404).json({ message: 'Project not found' });
+    
+    const updateData = { ...req.body, updatedBy: founderName };
+    
+    // Auto-calculate progress from tasks
+    if (updateData.tasks && Array.isArray(updateData.tasks) && updateData.tasks.length > 0) {
+      const doneTasks = updateData.tasks.filter(t => t.status === 'done').length;
+      updateData.progress = Math.round((doneTasks / updateData.tasks.length) * 100);
+      
+      // Auto-complete project when progress hits 100%
+      if (updateData.progress === 100 && oldProject.status !== 'completed') {
+        updateData.status = 'completed';
+        
+        // Award XP to all assignees
+        const assignees = updateData.assignees || oldProject.assignees || [];
+        const xpPerFounder = Math.round(500 / Math.max(assignees.length, 1));
+        for (const assigneeName of assignees) {
+          const assigneeFounder = await Founder.findOne({ name: { $regex: new RegExp(`^${assigneeName}$`, 'i') } });
+          if (assigneeFounder) {
+            assigneeFounder.xp = (assigneeFounder.xp || 0) + xpPerFounder;
+            assigneeFounder.level = Math.floor(assigneeFounder.xp / 1000) + 1;
+            await assigneeFounder.save();
+            await createNotification({ type: 'xp_earned', title: 'XP Earned!', message: `+${xpPerFounder} XP for completing project ${oldProject.name}!`, priority: 'low', icon: '⚡', targetFounderId: assigneeFounder._id.toString() });
+          }
+        }
+        
+        // Update client satisfaction
+        const isOnTime = new Date() <= new Date(oldProject.deadline);
+        const client = await Client.findOne({ company: oldProject.client });
+        if (client) {
+          client.satisfaction = isOnTime ? Math.min(5, (client.satisfaction || 4) + 0.2) : Math.max(1, (client.satisfaction || 4) - 0.3);
+          await client.save();
+        }
+        
+        await logActivity({ founderId: req.founderId, founderName, action: 'project_completed', entityType: 'project', entityId: oldProject._id, entityName: oldProject.name, details: `Project ${oldProject.name} completed ${isOnTime ? 'on time! 🎯' : '(past deadline)'}`, icon: '✅' });
+        await createNotification({ type: 'project_completed', title: '🎉 Project Completed!', message: `${oldProject.name} is now complete! ${isOnTime ? 'Delivered on time!' : ''}`, priority: 'high', icon: '✅', sourceFounderId: req.founderId, sourceFounderName: founderName, entityType: 'project', entityId: oldProject._id });
+      }
+    }
+    
+    // Check for over-budget
+    if (updateData.spent && updateData.spent > (oldProject.budget || 0) && oldProject.spent <= oldProject.budget) {
+      await createNotification({ type: 'over_budget', title: '⚠️ Over Budget', message: `${oldProject.name} has exceeded its budget of ₹${(oldProject.budget || 0).toLocaleString('en-IN')}`, priority: 'high', icon: '⚠️', sourceFounderId: req.founderId, sourceFounderName: founderName, entityType: 'project', entityId: oldProject._id });
+    }
+    
+    const updated = await Project.findByIdAndUpdate(req.params.id, updateData, { new: true });
     res.json(updated);
   } catch (err) {
     res.status(400).json({ message: err.message });
@@ -470,6 +670,7 @@ router.post('/transactions', requireFounder, async (req, res) => {
     const founderName = await getFounderName(req.founderId);
     const newTx = new Transaction({ ...req.body, founderId: req.founderId, updatedBy: founderName });
     const saved = await newTx.save();
+    await logActivity({ founderId: req.founderId, founderName, action: saved.type === 'expense' ? 'expense_logged' : 'invoice_created', entityType: 'transaction', entityId: saved._id, entityName: saved.description, details: `${saved.type === 'expense' ? 'Expense' : 'Revenue'}: ₹${saved.amount.toLocaleString('en-IN')} — ${saved.description}`, icon: saved.type === 'expense' ? '📤' : '💵' });
     res.status(201).json(saved);
   } catch (err) {
     res.status(400).json({ message: err.message });
@@ -479,12 +680,34 @@ router.post('/transactions', requireFounder, async (req, res) => {
 router.put('/transactions/:id', requireFounder, async (req, res) => {
   try {
     const founderName = await getFounderName(req.founderId);
+    const oldTx = await Transaction.findById(req.params.id);
+    if (!oldTx) return res.status(404).json({ message: 'Transaction not found' });
+    
     const updated = await Transaction.findByIdAndUpdate(
       req.params.id,
       { ...req.body, updatedBy: founderName },
       { new: true }
     );
-    if (!updated) return res.status(404).json({ message: 'Transaction not found' });
+    
+    // Invoice marked as paid: update client totalRevenue
+    if (oldTx.status !== 'paid' && updated.status === 'paid' && updated.type === 'revenue' && updated.client) {
+      await Client.findOneAndUpdate(
+        { company: updated.client },
+        { $inc: { totalRevenue: updated.amount } }
+      );
+      
+      await logActivity({ founderId: req.founderId, founderName, action: 'invoice_paid', entityType: 'transaction', entityId: updated._id, entityName: `Invoice ${updated.invoiceNumber || ''}`, details: `₹${updated.amount.toLocaleString('en-IN')} received from ${updated.client}`, icon: '💰' });
+      await createNotification({ type: 'invoice_paid', title: 'Payment Received!', message: `₹${updated.amount.toLocaleString('en-IN')} from ${updated.client} marked as paid`, priority: 'medium', icon: '💰', sourceFounderId: req.founderId, sourceFounderName: founderName, entityType: 'transaction', entityId: updated._id });
+      
+      // Award XP
+      const founder = await Founder.findById(req.founderId);
+      if (founder) {
+        founder.xp = (founder.xp || 0) + 25;
+        founder.level = Math.floor(founder.xp / 1000) + 1;
+        await founder.save();
+      }
+    }
+    
     res.json(updated);
   } catch (err) {
     res.status(400).json({ message: err.message });
@@ -555,4 +778,97 @@ router.post('/kb', async (req, res) => {
   }
 });
 
+// --- Meetings ---
+router.get('/meetings', requireFounder, async (req, res) => {
+  try {
+    const meetings = await Meeting.find().sort({ date: -1 });
+    res.json(meetings);
+  } catch (err) {
+    res.status(500).json({ message: err.message });
+  }
+});
+
+router.post('/meetings', requireFounder, async (req, res) => {
+  try {
+    const founderName = await getFounderName(req.founderId);
+    const newMeeting = new Meeting({ ...req.body, founderId: req.founderId, updatedBy: founderName });
+    const saved = await newMeeting.save();
+    await logActivity({ founderId: req.founderId, founderName, action: 'meeting_created', entityType: 'meeting', entityId: saved._id, entityName: saved.title, details: `Meeting "${saved.title}" created`, icon: '📅' });
+    res.status(201).json(saved);
+  } catch (err) {
+    res.status(400).json({ message: err.message });
+  }
+});
+
+router.put('/meetings/:id', requireFounder, async (req, res) => {
+  try {
+    const founderName = await getFounderName(req.founderId);
+    const updated = await Meeting.findByIdAndUpdate(req.params.id, { ...req.body, updatedBy: founderName }, { new: true });
+    if (!updated) return res.status(404).json({ message: 'Meeting not found' });
+    res.json(updated);
+  } catch (err) {
+    res.status(400).json({ message: err.message });
+  }
+});
+
+router.delete('/meetings/:id', requireFounder, async (req, res) => {
+  try {
+    await Meeting.findByIdAndDelete(req.params.id);
+    res.json({ message: 'Meeting deleted' });
+  } catch (err) {
+    res.status(500).json({ message: err.message });
+  }
+});
+
+// --- Activity Log (read-only) ---
+router.get('/activity', requireFounder, async (req, res) => {
+  try {
+    const limit = parseInt(req.query.limit) || 20;
+    const activities = await ActivityLog.find().sort({ createdAt: -1 }).limit(limit);
+    res.json(activities);
+  } catch (err) {
+    res.status(500).json({ message: err.message });
+  }
+});
+
+// --- Notifications ---
+router.get('/notifications', requireFounder, async (req, res) => {
+  try {
+    const now = new Date();
+    // Return notifications that are either fired OR whose scheduledFor has passed
+    const notifications = await NotificationModel.find({
+      $or: [
+        { fired: true },
+        { scheduledFor: { $lte: now } }
+      ]
+    }).sort({ createdAt: -1 }).limit(50);
+    
+    // Mark scheduled ones as fired
+    await NotificationModel.updateMany({ scheduledFor: { $lte: now }, fired: false }, { fired: true });
+    
+    res.json(notifications);
+  } catch (err) {
+    res.status(500).json({ message: err.message });
+  }
+});
+
+router.put('/notifications/:id/read', requireFounder, async (req, res) => {
+  try {
+    const updated = await NotificationModel.findByIdAndUpdate(req.params.id, { read: true }, { new: true });
+    res.json(updated);
+  } catch (err) {
+    res.status(400).json({ message: err.message });
+  }
+});
+
+router.put('/notifications/read-all', requireFounder, async (req, res) => {
+  try {
+    await NotificationModel.updateMany({ read: false }, { read: true });
+    res.json({ message: 'All notifications marked as read' });
+  } catch (err) {
+    res.status(500).json({ message: err.message });
+  }
+});
+
 export default router;
+
