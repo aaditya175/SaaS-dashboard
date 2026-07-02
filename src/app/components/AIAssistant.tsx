@@ -33,9 +33,13 @@ export default function AIAssistant({ isOpen, onClose }: { isOpen: boolean; onCl
 
     // Build context
     const context = {
-      recentActivity: activityLog.slice(0, 10).map(a => `${a.action}: ${a.details}`),
+      recentActivity: activityLog.slice(0, 15).map(a => `${a.founderName} did: ${a.action} - ${a.details}`),
       openLeadsCount: leads.filter(l => l.stage !== 'Won' && l.stage !== 'Lost').length,
-      activeProjectsCount: projects.filter(p => p.status !== 'completed').length,
+      activeProjects: projects.filter(p => p.status !== 'completed').map(p => ({
+        name: p.name,
+        client: p.clientName,
+        tasks: p.tasks.map(t => `${t.title} (${t.status}) - Assigned to: ${t.assignee || 'Unassigned'}`)
+      })),
       unreadNotifications: notifications.filter(n => !n.read).length
     };
 
