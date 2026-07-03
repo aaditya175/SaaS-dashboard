@@ -314,6 +314,7 @@ router.post('/leads', requireFounder, async (req, res) => {
     const founderName = await getFounderName(req.founderId);
     const newLead = new Lead({ ...req.body, founderId: req.founderId, updatedBy: founderName });
     const saved = await newLead.save();
+    await logActivity({ founderId: req.founderId, founderName, action: 'lead_created', entityType: 'lead', entityId: saved._id, entityName: saved.name, details: `Added new lead: ${saved.name} from ${saved.company}`, icon: '👥' });
     res.status(201).json(saved);
   } catch (err) {
     res.status(400).json({ message: err.message });
@@ -383,7 +384,7 @@ router.put('/leads/:id', requireFounder, async (req, res) => {
         });
         await newTx.save();
         
-        await logActivity({ founderId: req.founderId, founderName, action: 'invoice_created', entityType: 'transaction', entityId: newTx._id, entityName: `Invoice for ${updated.company}`, details: `Draft invoice ₹${(updated.value || 0).toLocaleString('en-IN')} created for ${updated.company}`, icon: '💰' });
+        await logActivity({ founderId: req.founderId, founderName, action: 'invoice_created', entityType: 'transaction', entityId: newTx._id, entityName: `Invoice for ${updated.company}`, details: `Draft invoice ₹${(updated.value || 0).toLocaleString('en-IN')} created for ${updated.company} proposal`, icon: '💰' });
         await createNotification({ type: 'invoice_created', title: 'Draft Invoice Created', message: `₹${(updated.value || 0).toLocaleString('en-IN')} invoice created for ${updated.company} proposal`, priority: 'low', icon: '💰', sourceFounderId: req.founderId, sourceFounderName: founderName, entityType: 'transaction', entityId: newTx._id });
       }
       
@@ -502,6 +503,8 @@ router.put('/leads/:id', requireFounder, async (req, res) => {
       if (!['Won', 'Lost', 'Meeting', 'Proposal'].includes(newStage)) {
         await logActivity({ founderId: req.founderId, founderName, action: 'lead_stage_changed', entityType: 'lead', entityId: updated._id, entityName: updated.company, details: `${updated.company} moved from ${oldStage} → ${newStage}`, icon: '📊' });
       }
+    } else {
+      await logActivity({ founderId: req.founderId, founderName, action: 'lead_updated', entityType: 'lead', entityId: updated._id, entityName: updated.company, details: `Updated lead ${updated.name}. ${updated.notes ? 'Notes: ' + updated.notes : ''}`, icon: '✏️' });
     }
     
     res.json(updated);
@@ -534,6 +537,7 @@ router.post('/projects', requireFounder, async (req, res) => {
     const founderName = await getFounderName(req.founderId);
     const newProject = new Project({ ...req.body, founderId: req.founderId, updatedBy: founderName });
     const saved = await newProject.save();
+    await logActivity({ founderId: req.founderId, founderName, action: 'project_created', entityType: 'project', entityId: saved._id, entityName: saved.name, details: `Created new project: ${saved.name} for ${saved.client}`, icon: '🚀' });
     res.status(201).json(saved);
   } catch (err) {
     res.status(400).json({ message: err.message });
@@ -589,6 +593,12 @@ router.put('/projects/:id', requireFounder, async (req, res) => {
     }
     
     const updated = await Project.findByIdAndUpdate(req.params.id, updateData, { new: true });
+    
+    // Log generic update if not completed in this request
+    if (!(updateData.progress === 100 && oldProject.status !== 'completed')) {
+      await logActivity({ founderId: req.founderId, founderName, action: 'project_updated', entityType: 'project', entityId: updated._id, entityName: updated.name, details: `Updated project ${updated.name}`, icon: '✏️' });
+    }
+    
     res.json(updated);
   } catch (err) {
     res.status(400).json({ message: err.message });
@@ -619,6 +629,7 @@ router.post('/clients', requireFounder, async (req, res) => {
     const founderName = await getFounderName(req.founderId);
     const newClient = new Client({ ...req.body, founderId: req.founderId, updatedBy: founderName });
     const saved = await newClient.save();
+    await logActivity({ founderId: req.founderId, founderName, action: 'client_created', entityType: 'client', entityId: saved._id, entityName: saved.name, details: `Added new client: ${saved.name} from ${saved.company}`, icon: '🏢' });
     res.status(201).json(saved);
   } catch (err) {
     res.status(400).json({ message: err.message });
@@ -634,6 +645,7 @@ router.put('/clients/:id', requireFounder, async (req, res) => {
       { new: true }
     );
     if (!updated) return res.status(404).json({ message: 'Client not found' });
+    await logActivity({ founderId: req.founderId, founderName, action: 'client_updated', entityType: 'client', entityId: updated._id, entityName: updated.name, details: `Updated client ${updated.name}`, icon: '✏️' });
     res.json(updated);
   } catch (err) {
     res.status(400).json({ message: err.message });
