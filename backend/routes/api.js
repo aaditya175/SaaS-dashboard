@@ -74,7 +74,7 @@ const createNotification = async ({ type, title, message, priority, icon, target
   }
 };
 
-import { generateSmartTasks, getAiInsights } from '../lib/ai.js';
+import { generateSmartTasks, getAiInsights, generateDraftCheckin } from '../lib/ai.js';
 
 // Helper for date calculations
 const getDayDifference = (dateStr1, dateStr2) => {
@@ -720,7 +720,7 @@ router.delete('/transactions/:id', requireFounder, async (req, res) => {
 // --- Check-ins ---
 router.get('/checkins', requireFounder, async (req, res) => {
   try {
-    const checkins = await DailyCheckin.find({ founderId: req.founderId });
+    const checkins = await DailyCheckin.find().sort({ createdAt: -1 });
     res.json(checkins);
   } catch (err) {
     res.status(500).json({ message: err.message });
@@ -872,6 +872,22 @@ router.post('/ai/chat', requireFounder, async (req, res) => {
     
     const reply = await getAiInsights(prompt, context || {});
     res.json({ reply });
+  } catch (err) {
+    res.status(500).json({ message: err.message });
+  }
+});
+
+router.post('/ai/draft-checkin', requireFounder, async (req, res) => {
+  try {
+    const twentyFourHoursAgo = new Date(Date.now() - 24 * 60 * 60 * 1000);
+    const recentActivities = await ActivityLog.find({ 
+      founderId: req.founderId,
+      createdAt: { $gte: twentyFourHoursAgo } 
+    }).sort({ createdAt: -1 });
+
+    const activities = recentActivities.map(a => a.details);
+    const draft = await generateDraftCheckin(activities);
+    res.json({ draft });
   } catch (err) {
     res.status(500).json({ message: err.message });
   }

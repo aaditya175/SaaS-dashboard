@@ -187,6 +187,7 @@ export default function Clients() {
         const created = await api.post('/clients', client, currentFounder);
         setClients(prev => [...prev, created]);
       }
+      await refreshData();
     } catch (err) {
       console.error(err);
     }

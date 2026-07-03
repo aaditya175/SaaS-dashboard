@@ -113,3 +113,19 @@ function getFallbackTasks(projectName, clientName) {
     { id: `t${Date.now()}_5`, title: 'Launch & Client Handoff', status: 'todo', assignee: '', priority: 'high', dueDate: '', projectId: '' }
   ];
 }
+
+export async function generateDraftCheckin(activities) {
+  if (!process.env.GEMINI_API_KEY) return 'Completed all assigned tasks for the day.';
+  try {
+    const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY);
+    const model = genAI.getGenerativeModel({ model: 'gemini-flash-latest' });
+    
+    const prompt = \Based on the following activity logs for a user today, draft a concise, professional 3-4 bullet point summary of what they accomplished. Keep it short and to the point. Start each point with an action verb. Activities: \\;
+    
+    const result = await model.generateContent(prompt);
+    return result.response.text();
+  } catch (error) {
+    console.error('AI Draft Error:', error.message);
+    return 'Completed all assigned tasks for the day.';
+  }
+}

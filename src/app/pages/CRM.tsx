@@ -174,6 +174,7 @@ export default function CRM() {
         const created = await api.post('/leads', lead, currentFounder);
         setLeads(prev => [...prev, created]);
       }
+      await refreshData();
     } catch (err) {
       console.error(err);
     }

@@ -326,11 +326,11 @@ export default function Projects() {
       if (project.id) {
         const updated = await api.put(`/projects/${project.id}`, project, currentFounder);
         setProjects(prev => prev.map(p => p.id === project.id ? updated : p));
-        await refreshData(); // Refresh to catch any automations (e.g. project completed -> XP awarded, invoice sent)
       } else {
         const created = await api.post('/projects', project, currentFounder);
         setProjects(prev => [...prev, created]);
       }
+      await refreshData();
     } catch (err) {
       console.error(err);
     }
